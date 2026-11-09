@@ -28,7 +28,8 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 .toast{position:fixed;right:22px;bottom:22px;z-index:20;background:#172d45;border:1px solid #4773a4;border-radius:10px;padding:14px 18px;box-shadow:0 10px 40px #0008;max-width:380px;font-size:12px}.hide{display:none!important}
 #term{height:340px;max-height:none;color:#b5e5c2}#termInput{font:12px Consolas,monospace;margin-top:10px}
 .loginwrap{min-height:100vh;display:grid;place-items:center;padding:22px}.login{width:100%;max-width:395px;text-align:left}.login .brand{padding:0 0 28px}.login input{margin:11px 0 16px}.login button{width:100%}
-.table{width:100%;border-collapse:collapse;font-size:12px;text-align:left}.table th{font-size:10px;color:#8ea0b9;text-transform:uppercase;letter-spacing:.7px;font-weight:600}.table th,.table td{padding:13px 10px;border-bottom:1px solid #253246}.table td{color:#c9d3e2}.table-wrap{overflow-x:auto}
+.table{width:100%;border-collapse:collapse;font-size:12px;text-align:left}.table th{font-size:10px;color:#8ea0b9;text-transform:uppercase;letter-spacing:.7px;font-weight:600}.table th,.table td{padding:13px 10px;border-bottom:1px solid #253246}.table td{color:#c9d3e2}.ssh-accordion{padding:0}.ssh-summary{cursor:pointer;list-style:none;user-select:none;padding:22px;margin:0;align-items:center}.ssh-summary::-webkit-details-marker{display:none}.ssh-summary:focus-visible{outline:2px solid var(--accent);outline-offset:-4px;border-radius:14px}.ssh-summary h2{margin-bottom:0}.ssh-content{padding:0 22px 22px}.ssh-chevron{font-size:22px;color:var(--muted);line-height:1;transition:transform .18s ease}.ssh-accordion[open] .ssh-chevron{transform:rotate(180deg)}.ssh-accordion[open] .ssh-summary{margin-bottom:12px}
+.table-wrap{overflow-x:auto}
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:1fr}.content{padding:25px}.topbar{padding:0 25px}}
 @media(max-width:720px){.shell{display:block}.sidebar{position:static;width:100%;height:auto;padding:14px 18px}.brand{padding:0 0 14px}.nav-label,.sidefoot{display:none}.nav{flex-direction:row;overflow-x:auto}.nav button{white-space:nowrap;padding:9px}.topbar{height:58px;padding:0 17px}.content{padding:20px 15px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{padding:15px}.metric-value{font-size:23px}.formgrid{grid-template-columns:1fr}.topright #hostname{display:none}}
 </style>
@@ -62,14 +63,16 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 </section>
 <section id="projects" class="hide">
 <div class="heading"><div><h1>Aplicações</h1><p>Repositórios Git, deploy, portas e gerenciamento de processos.</p></div><button id="showCreate">+ Nova aplicação</button></div>
-<div class="panel" id="sshPanel" style="margin-bottom:18px">
-<div class="section-top"><div><h2>GitHub · Chave SSH de deploy</h2><p class="small muted" style="margin:7px 0 0">Acesse repositórios privados com uma chave pública cadastrada no GitHub.</p></div><span class="badge" id="sshStatus">Verificando...</span></div>
+<details class="panel ssh-accordion" id="sshPanel" style="margin-bottom:18px">
+<summary class="section-top ssh-summary"><div><h2>GitHub · Chave SSH de deploy</h2><p class="small muted" style="margin:7px 0 0">Acesse repositórios privados com uma chave pública cadastrada no GitHub.</p></div><div class="actions" style="align-items:center"><span class="badge" id="sshStatus">Verificando...</span><span class="ssh-chevron" aria-hidden="true">⌄</span></div></summary>
+<div class="ssh-content">
 <div id="sshEmpty"><p class="small muted">Gere uma chave exclusiva para esta instalação. Cadastre a chave pública em <strong>GitHub → Repositório → Settings → Deploy keys → Add deploy key</strong>, sem marcar acesso de escrita.</p><button id="generateSSH" type="button">Gerar chave SSH</button></div>
 <div id="sshReady" class="hide"><label class="field">Chave pública (pode ser compartilhada com o GitHub)<input id="sshPublicKey" readonly aria-label="Chave SSH pública"></label>
 <div class="actions" style="margin-top:11px"><button type="button" class="ghost" id="copySSH">Copiar chave pública</button><a href="https://github.com/settings/keys" target="_blank" rel="noopener noreferrer" class="small" style="align-self:center">Minhas chaves do GitHub</a></div>
 <p class="help">Preferível: Deploy key somente leitura em cada repositório. A mesma chave não pode ser reutilizada como deploy key em repositórios diferentes; para vários repositórios, utilize uma chave SSH de conta ou uma conta de máquina com acesso mínimo. Nunca compartilhe a chave privada.</p>
 <div class="formgrid" style="margin-top:16px"><label class="field wide">Testar acesso ao repositório privado<input id="sshRepoToTest" placeholder="git@github.com:empresa/projeto.git"></label><div class="wide"><button id="testSSH" type="button" class="ghost">Testar acesso SSH</button></div></div></div>
 </div>
+</details>
 <div class="panel hide" id="createPanel"><div class="section-top"><h2>Conectar repositório Git</h2><button class="subtle" id="closeCreate">Fechar</button></div><form id="projectForm" class="formgrid">
 <label class="field">Nome da aplicação<input name="name" placeholder="minha-api" required pattern="[A-Za-z0-9][A-Za-z0-9_-]*"></label>
 <label class="field">Branch<input name="branch" value="main" required></label>
