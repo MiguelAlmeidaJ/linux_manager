@@ -11,6 +11,7 @@ from pathlib import Path
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
+import github_ssh as ghssh
 
 ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
 RESERVED = {"ADMIN_PASSWORD", "SESSION_SECRET", "PM2_HOME", "HOME", "PATH", "PORT"}
@@ -83,7 +84,7 @@ def environment(projects_root: Path, name: str):
     base = {k: v for k, v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}
     home = str(Path.home())
     base.update({"HOME": home, "PM2_HOME": str(Path(home) / ".pm2")})
-    return {**base, **read_env(projects_root, name)}
+    return ghssh.git_environment({**base, **read_env(projects_root, name)})
 
 
 def safe_args(command):
