@@ -208,7 +208,7 @@ def docker_list(request: Request):
 def docker_action(name: str, action: str, request: Request):
     assert_auth(request)
     _, path = get_project(name)
-    if not (path / "compose.yaml").is_file() and not (path / "docker-compose.yml").is_file() and not (path / "docker-compose.yaml").is_file():
+    if not any((path / filename).is_file() for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml")):
         raise HTTPException(400, "Compose não encontrado no projeto")
     if action == "up":
         args = ["docker", "compose", "-p", f"lm-{name}", "up", "-d", "--build"]
