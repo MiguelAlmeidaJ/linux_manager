@@ -9,6 +9,8 @@ User=linuxmanager
 Group=linuxmanager
 WorkingDirectory=/opt/linux-manager
 EnvironmentFile=/opt/linux-manager/.env
+Environment=HOME=/home/linuxmanager
+Environment=PM2_HOME=/home/linuxmanager/.pm2
 ExecStart=/opt/linux-manager/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765
 Restart=on-failure
 RestartSec=3
