@@ -127,3 +127,38 @@ sudo systemctl status linux-manager --no-pager
 Abra o painel e use `Ctrl+Shift+R` para descartar o cache da interface.
 
 **Limitações do MVP:** Não instala dependências específicas de cada repositório automaticamente além dos comandos informados; não verifica conflitos de porta antes de iniciar; não configura Nginx/domínios/SSL; a identificação de status Docker no resumo informa somente o runtime, não o estado de cada container. O deploy é síncrono, portanto builds muito longos podem bloquear aquela requisição. Para produção, uma fila de tarefas e logs progressivos são recomendados.
+
+## Ajustes de monitoramento e PM2 (v0.3)
+
+**CPU:** o painel agora coleta uso da CPU em uma thread de fundo a cada 2 segundos. O cartão principal exibe uma média móvel de até 30 segundos, com a última amostra indicada em texto menor (`Média 30s · atual X%`). Nos primeiros 30 segundos após o restart a média é calculada com as amostras disponíveis, e começa em zero até a primeira amostra.
+
+**PM2:** o serviço systemd e os subprocessos do painel definem explicitamente `HOME=/home/linuxmanager` e `PM2_HOME=/home/linuxmanager/.pm2`. O instalador não executa mais `pm2 -v` como root (essa consulta pode iniciar um daemon do root).
+
+### Atualizar servidor existente
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+exit
+
+# Opcional: atualizar o unit file preservando a porta pública 8765
+sudo sed 's@--host 127.0.0.1 --port 8765@--host 0.0.0.0 --port 8765@' \
+  /opt/linux-manager/deploy/linux-manager.service | sudo tee /etc/systemd/system/linux-manager.service >/dev/null
+sudo systemctl daemon-reload
+sudo systemctl restart linux-manager
+```
+
+### Limpeza segura do PM2 do root
+
+O script abaixo **só encerra o daemon PM2 do root se sua lista estiver vazia**, e aborta caso haja processos cadastrados ou erro de leitura. Não apaga projetos nem afeta o daemon do `linuxmanager`.
+
+```bash
+cd /opt/linux-manager
+sudo bash deploy/cleanup-root-pm2.sh
+sudo -iu linuxmanager pm2 list
+```
+
+Não execute `sudo pm2 list` depois da limpeza: o próprio comando pode reiniciar um daemon PM2 do root. Se precisar examinar, use `ps -eo user,args | grep '[G]od Daemon'`.
+
+No navegador, utilize Ctrl+Shift+R após atualizar. Confirme que o cartão CPU mostra `Média 30s`.
