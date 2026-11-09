@@ -2,116 +2,138 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Linux Manager</title>
+<title>Linux Manager — Server Console</title>
 <style>
-:root{font-family:Inter,ui-sans-serif,system-ui,Arial;background:#0a101b;color:#e8eef8;color-scheme:dark}
-*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}
-header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #273248;padding:18px 5%}
-h1{font-size:20px;margin:0}h2{font-size:18px;margin:0 0 15px}h3{font-size:15px;margin:0 0 10px}
-main{max-width:1250px;margin:auto;padding:26px 5% 70px}.muted{color:#91a2bd}.small{font-size:13px}
-.nav{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0}.nav button{background:transparent;color:#bcc9dc}
-.nav button.active{background:#233956;color:#fff}
-button{background:#3e79db;border:1px solid #456eae;color:white;border-radius:9px;padding:9px 14px}
-button:hover{filter:brightness(1.15)}button.secondary{background:#1c2b40;border-color:#344760}
-input{background:#101b2c;border:1px solid #33445e;color:#fff;border-radius:8px;padding:11px;min-width:0;width:100%}
-.card{background:#121e30;border:1px solid #2b3b54;border-radius:14px;padding:22px;margin:14px 0}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px}
-.cards .card{margin:0}.value{font-size:26px;font-weight:700;margin:12px 0 5px}
-.bar{background:#28374d;border-radius:100px;overflow:hidden;height:7px;margin-top:13px}.bar>i{height:100%;display:block;background:#5a9bfa}
-.form-grid{display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:10px;align-items:end}
-label{font-size:13px;color:#aebbd0;display:grid;gap:6px}.project{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border-top:1px solid #2b3b54;padding:17px 0}
-.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{font-size:12px;padding:8px 10px}
-pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto;font-size:12px;line-height:1.6;background:#0a1423;border:1px solid #2b3b54;border-radius:10px;padding:17px}
-#term{background:#050a11;height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#b2e3b3;font:13px/1.5 monospace;border-radius:10px;padding:15px}
-#termInput{font-family:monospace;margin-top:10px}
-#login{max-width:390px;margin:13vh auto;padding:30px}#login input{margin:16px 0}#login button{width:100%}
-.notice{border-left:3px solid #e3b463;padding-left:10px;color:#c9d0da}
-.hide{display:none!important}#status{font-size:13px;color:#91a2bd}
-@media(max-width:750px){.form-grid{grid-template-columns:1fr}header{padding:16px 5%}.project{align-items:start}}
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#e6eaf2;background:#0b1019;color-scheme:dark;--bg:#0b1019;--side:#0e1521;--card:#111a28;--card2:#151f2e;--line:#253144;--text:#e6eaf2;--muted:#8795ac;--accent:#6c9aff;--green:#4ed6a2;--red:#ff787b}
+*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
+h1,h2,h3,p{margin-top:0}h1{font-size:26px;letter-spacing:-.7px;margin-bottom:5px}h2{font-size:17px;letter-spacing:-.25px}h3{font-size:14px}
+a{color:inherit}input,select{background:#0e1725;border:1px solid #2d3b51;border-radius:9px;color:#e5ecf7;padding:11px 12px;width:100%;outline:none;min-width:0}
+input:focus,select:focus{border-color:var(--accent)}button{border:0;background:#3973e6;color:#fff;padding:10px 15px;border-radius:9px;font-size:13px;font-weight:600}
+button:hover{filter:brightness(1.13)}button.ghost{background:#1d2b3e;color:#cbd6e7;border:1px solid #304158}button.subtle{background:transparent;color:var(--muted);border:1px solid var(--line)}
+.shell{display:flex;min-height:100vh}.sidebar{width:240px;position:sticky;top:0;height:100vh;background:var(--side);border-right:1px solid var(--line);padding:28px 15px;display:flex;flex-direction:column;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px;padding:0 12px 36px}.brand-logo{width:37px;height:37px;background:linear-gradient(135deg,#317fff,#7b99ef);border-radius:11px;display:grid;place-items:center;font-size:21px;font-weight:800;color:#fff;box-shadow:0 6px 25px #2a69ed35}.brand strong{font-size:15px}.brand small{display:block;font-size:10px;color:var(--muted);margin-top:3px}
+.nav-label{font-size:10px;color:#6f8098;text-transform:uppercase;letter-spacing:1.5px;font-weight:700;padding:12px;margin-bottom:4px}
+.nav{display:flex;flex-direction:column;gap:5px}.nav button{background:transparent;text-align:left;border-radius:9px;color:#9daac0;padding:12px;font-size:13px;font-weight:500;display:flex;gap:12px;align-items:center}.nav button.active{color:#fff;background:#1c2c45}.nav button.active .ico{color:#8db1ff}.ico{width:19px;font-size:17px;display:inline-flex;justify-content:center}
+.sidefoot{margin-top:auto;padding:16px 12px;border-top:1px solid var(--line)}.online{display:flex;align-items:center;gap:9px;font-size:12px}.dot{height:7px;width:7px;background:var(--green);border-radius:50%;box-shadow:0 0 12px #4ed6a286}.small{font-size:12px}.muted{color:var(--muted)}.main{flex:1;min-width:0}
+.topbar{height:82px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 36px;gap:16px}
+.breadcrumb{font-size:13px;color:#a4b1c6}.topright{display:flex;align-items:center;gap:12px}.avatar{background:#244573;border:1px solid #49668d;width:32px;height:32px;display:grid;place-items:center;border-radius:50%;font-size:12px}
+.content{max-width:1440px;margin:0 auto;padding:36px}.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:26px;flex-wrap:wrap}.heading p{color:var(--muted);font-size:13px;margin:6px 0 0}
+.grid{display:grid;gap:16px}.kpis{grid-template-columns:repeat(4,minmax(0,1fr))}.panel{border:1px solid var(--line);background:var(--card);border-radius:14px;padding:22px;min-width:0}.metric{padding:23px}.metric-head{display:flex;justify-content:space-between;align-items:center;color:#a5b2c6;font-size:12px}.metric-icon{background:#1a2a42;border:1px solid #243956;color:#8db2ff;width:31px;height:31px;border-radius:9px;display:grid;place-items:center;font-size:16px}.metric-value{font-size:29px;font-weight:730;letter-spacing:-.8px;margin:17px 0 9px}.metric-note{font-size:11px;color:var(--muted)}.bar{height:5px;border-radius:12px;background:#283448;margin:13px 0 8px;overflow:hidden}.bar span{height:100%;display:block;background:linear-gradient(90deg,#427cfa,#70aaff);border-radius:12px}
+.two{grid-template-columns:minmax(0,1.3fr) minmax(290px,.8fr);margin-top:18px}.section-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.badge{border-radius:20px;font-size:10px;font-weight:700;padding:5px 9px;background:#20304b;color:#9fbcff}.status{font-size:11px;display:inline-flex;align-items:center;gap:7px}.status:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--green)}.status.off:before{background:#8491a5}.status.warn:before{background:#f7c26b}
+.systemrow{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #263346;padding:13px 0;font-size:12px;gap:12px}.systemrow:last-child{border:0}.sysvalue{color:#d7e0f1;font-weight:600;text-align:right}.empty{padding:36px 16px;text-align:center;color:#8998ad;border:1px dashed #364359;border-radius:12px;background:#101928}.empty .glyph{display:block;font-size:35px;color:#6e8db7;margin-bottom:13px}.empty strong{display:block;color:#e3eaf5;margin-bottom:7px}
+.actions{display:flex;flex-wrap:wrap;gap:7px}.actions button{padding:8px 10px;font-size:11px}
+.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.field{display:block;font-size:12px;color:#b3c0d4}.field input,.field select{margin-top:8px}.wide{grid-column:1/-1}.help{font-size:11px;color:#8090a8;margin-top:6px}.divider{height:1px;background:var(--line);margin:22px 0}
+.proj{border:1px solid #2b3950;background:#131e2e;border-radius:12px;padding:19px;margin-top:13px}.proj-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.proj-name{font-size:15px;font-weight:700}.proj-url{font-size:11px;color:#8494ab;overflow-wrap:anywhere;margin-top:7px}.proj-grid{display:flex;gap:17px;margin:17px 0;color:#a7b6ca;font-size:11px;flex-wrap:wrap}.proj-grid strong{color:#eff4fc}.proj-tools{display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid #2b3950;padding-top:15px}.proj-tools button{font-size:11px;padding:8px 10px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-monospace,Consolas,monospace;background:#0a111d;border:1px solid #263447;border-radius:10px;padding:16px;overflow:auto;max-height:330px}
+.toast{position:fixed;right:22px;bottom:22px;z-index:20;background:#172d45;border:1px solid #4773a4;border-radius:10px;padding:14px 18px;box-shadow:0 10px 40px #0008;max-width:380px;font-size:12px}.hide{display:none!important}
+#term{height:340px;max-height:none;color:#b5e5c2}#termInput{font:12px Consolas,monospace;margin-top:10px}
+.loginwrap{min-height:100vh;display:grid;place-items:center;padding:22px}.login{width:100%;max-width:395px;text-align:left}.login .brand{padding:0 0 28px}.login input{margin:11px 0 16px}.login button{width:100%}
+.table{width:100%;border-collapse:collapse;font-size:12px;text-align:left}.table th{font-size:10px;color:#8ea0b9;text-transform:uppercase;letter-spacing:.7px;font-weight:600}.table th,.table td{padding:13px 10px;border-bottom:1px solid #253246}.table td{color:#c9d3e2}.table-wrap{overflow-x:auto}
+@media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:1fr}.content{padding:25px}.topbar{padding:0 25px}}
+@media(max-width:720px){.shell{display:block}.sidebar{position:static;width:100%;height:auto;padding:14px 18px}.brand{padding:0 0 14px}.nav-label,.sidefoot{display:none}.nav{flex-direction:row;overflow-x:auto}.nav button{white-space:nowrap;padding:9px}.topbar{height:58px;padding:0 17px}.content{padding:20px 15px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{padding:15px}.metric-value{font-size:23px}.formgrid{grid-template-columns:1fr}.topright #hostname{display:none}}
 </style>
 </head>
 <body>
-<div id="login" class="card hide"><h1>Linux Manager</h1><p class="muted">Acesse seu servidor com segurança.</p><form id="loginForm"><input type="password" id="password" placeholder="Senha de administrador" autocomplete="current-password" required><button>Entrar</button></form><p id="loginError" class="small"></p></div>
-<div id="app" class="hide">
-<header><div><h1>◈ Linux Manager</h1><span class="small muted">Gerenciamento de um servidor</span></div><div><span id="status"></span> <button class="secondary" id="logout">Sair</button></div></header>
-<main>
-<div class="nav"><button data-tab="dashboard" class="active">Dashboard</button><button data-tab="projects">Projetos</button><button data-tab="pm2">PM2</button><button data-tab="docker">Docker</button><button data-tab="terminal">Terminal</button></div>
-<section id="dashboard"><h2>Visão geral</h2><div class="cards" id="metrics"></div><p class="small muted">Dados atualizados a cada 5 segundos.</p></section>
-<section id="projects" class="hide"><h2>Projetos Git</h2><div class="card"><h3>Adicionar projeto</h3><form id="projectForm" class="form-grid"><label>Nome<input name="name" placeholder="minha-api" required></label><label>Repositório HTTPS ou SSH<input name="repo" placeholder="https://github.com/usuario/projeto.git" required></label><label>Branch<input name="branch" value="main" required></label><button>Criar projeto</button></form></div><div class="card"><h3>Projetos cadastrados</h3><div id="projectList"></div></div></section>
-<section id="pm2" class="hide"><h2>Processos PM2</h2><button onclick="loadPM2()">Atualizar processos</button><pre id="pm2Output">Carregando...</pre><p class="small muted">Para iniciar uma aplicação, abra Projetos e informe o script Node.js ou Python.</p></section>
-<section id="docker" class="hide"><h2>Containers Docker</h2><button onclick="loadDocker()">Atualizar containers</button><pre id="dockerOutput">Carregando...</pre><p class="small muted">Para executar um Compose, use as ações do projeto cadastrado.</p></section>
-<section id="terminal" class="hide"><h2>Terminal do servidor</h2><p class="notice small">Comandos executados com a conta Linux do painel. Use apenas em rede privada ou sob HTTPS protegido.</p><button id="connectTerminal">Conectar terminal</button><button class="secondary" id="disconnectTerminal">Desconectar</button><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></section>
-<div class="card"><h3>Resultado da última operação</h3><pre id="output">Pronto.</pre></div>
-</main></div>
+<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha de administrador"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
+<div class="shell hide" id="app">
+<aside class="sidebar">
+<div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div>
+<div class="nav-label">Workspace</div>
+<nav class="nav">
+<button data-tab="dashboard" class="active"><span class="ico">▦</span>Visão geral</button>
+<button data-tab="projects"><span class="ico">◇</span>Aplicações</button>
+<button data-tab="pm2"><span class="ico">◉</span>Processos PM2</button>
+<button data-tab="docker"><span class="ico">▤</span>Containers</button>
+<button data-tab="ports"><span class="ico">⇄</span>Portas de rede</button>
+<button data-tab="terminal"><span class="ico">⌘</span>Terminal</button>
+</nav>
+<div class="sidefoot"><div class="online"><span class="dot"></span><span>Servidor conectado</span></div><div class="muted small" style="margin-top:9px">Single-server edition · v0.2</div></div>
+</aside>
+<div class="main">
+<header class="topbar"><div class="breadcrumb">Servidor <span style="color:#53667e">/</span> <span id="crumb">Visão geral</span></div><div class="topright"><span id="hostname" class="muted small">Linux</span><span class="avatar">LM</span><button class="subtle" id="logout">Sair</button></div></header>
+<div class="content">
+<section id="dashboard">
+<div class="heading"><div><h1>Visão geral</h1><p>Acompanhe o estado e os recursos do seu servidor em tempo real.</p></div><button class="ghost" id="refresh">↻ Atualizar</button></div>
+<div class="grid kpis" id="metrics"></div>
+<div class="grid two">
+<div class="panel"><div class="section-top"><h2>Aplicações hospedadas</h2><button class="subtle" id="goProjects">Ver todas →</button></div><div id="summaryApps" class="empty"><span class="glyph">◇</span><strong>Nenhuma aplicação cadastrada</strong>Cadastre seu primeiro repositório na aba Aplicações.</div></div>
+<div class="panel"><div class="section-top"><h2>Informações do servidor</h2><span class="badge">Linux</span></div><div id="hostInfo"><div class="muted small">Carregando dados...</div></div></div>
+</div>
+</section>
+<section id="projects" class="hide">
+<div class="heading"><div><h1>Aplicações</h1><p>Repositórios Git, deploy, portas e gerenciamento de processos.</p></div><button id="showCreate">+ Nova aplicação</button></div>
+<div class="panel hide" id="createPanel"><div class="section-top"><h2>Conectar repositório Git</h2><button class="subtle" id="closeCreate">Fechar</button></div><form id="projectForm" class="formgrid">
+<label class="field">Nome da aplicação<input name="name" placeholder="minha-api" required pattern="[A-Za-z0-9][A-Za-z0-9_-]*"></label>
+<label class="field">Branch<input name="branch" value="main" required></label>
+<label class="field wide">URL do repositório Git<input name="repo" placeholder="https://github.com/usuario/projeto.git" required></label>
+<div class="wide"><button>Clonar repositório</button><p class="help">Após clonar, configure runtime, porta e deploy no cartão da aplicação.</p></div></form></div>
+<div id="projectList"><div class="empty"><span class="glyph">◇</span>Carregando aplicações...</div></div>
+</section>
+<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Gerenciamento dos processos Node.js e Python.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>Reinícios</th><th>Memória</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
+<section id="docker" class="hide"><div class="heading"><div><h1>Containers Docker</h1><p>Containers e serviços Docker deste servidor.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div><div class="panel"><pre id="dockerOutput">Carregando containers...</pre></div></section>
+<section id="ports" class="hide"><div class="heading"><div><h1>Portas de rede</h1><p>Conexões TCP em escuta no servidor.</p></div><button class="ghost" id="reloadPorts">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Porta</th><th>Endereço</th><th>PID</th></tr></thead><tbody id="portsTable"></tbody></table></div></div></section>
+<section id="terminal" class="hide"><div class="heading"><div><h1>Terminal</h1><p>Acesso à shell do usuário responsável pelos projetos.</p></div></div><div class="panel"><p class="small muted">O terminal deve ser usado apenas em conexão HTTPS confiável ou rede restrita.</p><div class="actions" style="margin-bottom:15px"><button id="connectTerminal">Conectar</button><button id="disconnectTerminal" class="ghost">Desconectar</button></div><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></div></section>
+<div class="panel" style="margin-top:20px"><div class="section-top"><h2>Console de operações</h2><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></div>
+</div>
+</div>
+</div>
+<div id="toast" class="toast hide"></div>
 <script>
-const $=id=>document.getElementById(id);
-let tab="dashboard",socket=null,terminalAllowed=false;
-async function api(path,method="GET",body=null){
- const options={method,headers:body?{"Content-Type":"application/json"}:{},credentials:"same-origin"};
- if(body) options.body=JSON.stringify(body);
- const res=await fetch("/api"+path,options);
- const data=await res.json().catch(()=>({}));
- if(!res.ok)throw new Error(typeof data.detail==="string"?data.detail:"Falha na operação");
- return data;
+const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",ports:"Portas de rede",terminal:"Terminal"};
+let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
+async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
+function notify(msg){const el=$("toast");el.textContent=msg;el.classList.remove("hide");setTimeout(()=>el.classList.add("hide"),3500)}
+function result(text){$("output").textContent=typeof text==="string"?text:JSON.stringify(text,null,2)}
+function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
+function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
+function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
+async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;mainView();await refresh()}catch{loginView()}}
+$("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
+$("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
+function switchTab(page){active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
+if(page==="projects")loadProjects();if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
+document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+$("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
+async function refresh(){try{const [s,h,st]=await Promise.all([api("/stats"),api("/host"),api("/projects/status")]);latestStatus=st;$("hostname").textContent=s.hostname;const data=[
+["CPU","◴",s.cpu+"%",s.cpu,"Uso do processador"],["Memória","▥",s.memory+"%",s.memory,bytes(s.memory_used)+" / "+bytes(s.memory_total)],["Disco","▤",s.disk+"%",s.disk,bytes(s.disk_used)+" / "+bytes(s.disk_total)],["Aplicações","◇",String(s.projects),0,st.filter(x=>x.status==="online").length+" processo(s) online"]];
+$("metrics").innerHTML=data.map(([label,icon,val,pct,note])=>'<div class="panel metric"><div class="metric-head"><span>'+label+'</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+val+'</div><div class="bar"><span style="width:'+pct+'%"></span></div><div class="metric-note">'+esc(note)+'</div></div>').join("");
+$("hostInfo").innerHTML=[["Host",h.hostname],["CPU",h.cpu_count+" núcleo(s)"],["Memória",bytes(h.memory_total)],["Uptime",time(h.uptime)],["Node.js",h.node_version],["PM2",h.pm2_version],["Docker",h.docker_version]].map(([a,b])=>'<div class="systemrow"><span class="muted">'+esc(a)+'</span><span class="sysvalue">'+esc(b)+'</span></div>').join("");
+$("summaryApps").className=st.length?"":"empty";$("summaryApps").innerHTML=st.length?st.slice(0,6).map(p=>'<div class="systemrow"><span>◇ '+esc(p.name)+' <span class="muted">:'+p.port+'</span></span><span class="status '+(p.status==="online"?"":"off")+'">'+esc(p.status)+'</span></div>').join(""):'<span class="glyph">◇</span><strong>Nenhuma aplicação cadastrada</strong>Cadastre seu primeiro repositório na aba Aplicações.';
+}catch(e){failure(e)}}
+setInterval(()=>{if(!$("app").classList.contains("hide")&&active==="dashboard")refresh()},6000);
+$("showCreate").onclick=()=>$("createPanel").classList.remove("hide");$("closeCreate").onclick=()=>$("createPanel").classList.add("hide");
+$("projectForm").onsubmit=async e=>{e.preventDefault();let body=Object.fromEntries(new FormData(e.target));try{result("Clonando repositório...");await api("/projects","POST",body);notify("Projeto clonado");e.target.reset();$("createPanel").classList.add("hide");await loadProjects();await refresh()}catch(e){failure(e)}};
+async function operation(path,method="POST",body){try{result("Executando operação...");const data=await api(path,method,body);result(data.steps?data.steps.map(s=>s.step+"\n"+s.output).join("\n\n"):data.output??data);notify("Operação concluída");await loadProjects();return data}catch(e){failure(e)}}
+const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,install_command:p.install_command??"",build_command:p.build_command??"",start_command:p.start_command??""});
+async function loadProjects(){try{const [projects,status]=await Promise.all([api("/projects"),api("/projects/status")]);latestProjects=projects;latestStatus=status;const el=$("projectList");el.replaceChildren();
+if(!projects.length){el.className="empty";el.innerHTML='<span class="glyph">◇</span><strong>Nenhuma aplicação ainda</strong>Conecte seu primeiro repositório Git para começar.';return}el.className="";
+for(const p of projects){
+const state=status.find(s=>s.name===p.name)||{status:"offline"};const conf=confDefaults(p);const card=document.createElement("article");card.className="proj";
+card.innerHTML='<div class="proj-head"><div><div class="proj-name">◇ '+esc(p.name)+'</div><div class="proj-url">'+esc(p.repo)+' <span style="opacity:.6">· '+esc(p.branch)+'</span></div></div><span class="status '+(state.status==="online"?"":"off")+'">'+esc(state.status)+'</span></div><div class="proj-grid"><span>Runtime: <strong>'+esc(conf.runtime)+'</strong></span><span>Porta: <strong>'+esc(conf.port)+'</strong></span><span>PID: <strong>'+esc(state.pid||"—")+'</strong></span><span>Reinícios: <strong>'+esc(state.restarts||0)+'</strong></span></div>';
+const controls=document.createElement("div");controls.className="proj-tools";
+function btn(title,cb,primary=false){const b=document.createElement("button");b.textContent=title;b.className=primary?"":"ghost";b.onclick=cb;controls.append(b)}
+const path="/projects/"+encodeURIComponent(p.name);
+btn("Configurar",()=>toggleConfig());btn("Deploy",()=>operation(path+"/deploy"),true);
+btn("Git pull",()=>operation(path+"/pull"));btn("Iniciar",()=>operation(path+"/process/start"));btn("Parar",()=>operation(path+"/process/stop"));btn("Reiniciar",()=>operation(path+"/process/restart"));btn("Logs",()=>operation(path+"/process/logs"));
+card.append(controls);
+const cfg=document.createElement("div");cfg.className="hide";cfg.style.marginTop="20px";
+cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="npm install"></label><label class="field wide">Comando de build<input name="build_command" placeholder="npm run build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: o deploy executa instalação e build, depois inicia pelo PM2. Docker: utiliza o arquivo Compose do repositório.</p></div></form>';
+const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});
+form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);await operation(path+"/config","PUT",o);cfg.classList.add("hide")};
+card.append(cfg);el.append(card);
+function toggleConfig(){cfg.classList.toggle("hide");}
 }
-function showLogin(){ $("login").classList.remove("hide");$("app").classList.add("hide"); }
-function showApp(){ $("login").classList.add("hide");$("app").classList.remove("hide"); }
-function result(s){$("output").textContent=typeof s==="string"?s:JSON.stringify(s,null,2)}
-function err(e){result("Erro: "+e.message)}
-async function init(){try{const d=await api("/me");terminalAllowed=d.terminal;showApp();await loadStats()}catch{showLogin()}}
-$("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}};
-$("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();showLogin()};
-document.querySelectorAll("[data-tab]").forEach(btn=>btn.onclick=()=>{
- tab=btn.dataset.tab;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b===btn));
- ["dashboard","projects","pm2","docker","terminal"].forEach(id=>$(id).classList.toggle("hide",id!==tab));
- if(tab==="projects")loadProjects();if(tab==="pm2")loadPM2();if(tab==="docker")loadDocker();
- if(tab==="terminal"&&!terminalAllowed){$("term").textContent="Terminal desabilitado. Configure TERMINAL_ENABLED=true para habilitar."}
-});
-const human=b=>(b/1024/1024/1024).toFixed(1)+" GB";
-async function loadStats(){if($("app").classList.contains("hide"))return;
- try{const d=await api("/stats");$("status").textContent=d.hostname;
- const items=[["CPU",d.cpu+"%",d.cpu],["Memória",d.memory+"%",d.memory],["Disco",d.disk+"%",d.disk],["Projetos",d.projects,0]];
- $("metrics").innerHTML=items.map(([label,value,percent])=>'<article class="card"><div class="muted small">'+label+'</div><div class="value">'+value+'</div><div class="bar"><i style="width:'+percent+'%"></i></div></article>').join("");
- }catch(e){err(e)}}
-setInterval(loadStats,5000);
-async function loadProjects(){
- try{const list=await api("/projects");const root=$("projectList");root.replaceChildren();
- if(!list.length){root.textContent="Nenhum projeto cadastrado.";return}
- for(const p of list){
- const row=document.createElement("div");row.className="project";
- const info=document.createElement("div");const name=document.createElement("strong");name.textContent=p.name;
- const meta=document.createElement("div");meta.className="small muted";meta.textContent=p.repo+" · "+p.branch;info.append(name,meta);row.append(info);
- const actions=document.createElement("div");actions.className="actions";
- function add(label,fn){const button=document.createElement("button");button.className="secondary";button.textContent=label;button.onclick=fn;actions.append(button)}
- const act=(path,body)=>operate(path,"POST",body);
- add("Git pull",()=>act("/projects/"+p.name+"/pull"));
- add("Iniciar PM2",()=>{let script=prompt("Script de entrada (ex.: index.js ou main.py)","index.js");if(script)act("/projects/"+p.name+"/pm2/start",{script})});
- add("Parar PM2",()=>act("/projects/"+p.name+"/pm2/stop"));
- add("Reiniciar PM2",()=>act("/projects/"+p.name+"/pm2/restart"));
- add("Logs PM2",()=>operate("/projects/"+p.name+"/pm2/logs"));
- add("Compose up",()=>act("/projects/"+p.name+"/docker/up"));
- add("Compose down",()=>act("/projects/"+p.name+"/docker/down"));
- add("Logs Docker",()=>act("/projects/"+p.name+"/docker/logs"));
- row.append(actions);root.append(row)
- }
- }catch(e){err(e)}
-}
-async function operate(path,method="GET",body=null){result("Executando operação...");try{const d=await api(path,method,body);result(d.output??d);if(tab==="projects")loadProjects()}catch(e){err(e)}}
-$("projectForm").onsubmit=async e=>{e.preventDefault();const form=new FormData(e.target);await operate("/projects","POST",Object.fromEntries(form));loadProjects()};
-async function loadPM2(){try{const d=await api("/pm2");$("pm2Output").textContent=d.map(p=>p.name+" | "+p.pm2_env?.status+" | PID "+p.pid).join("\n")||"Nenhum processo"}catch(e){$("pm2Output").textContent=e.message}}
-async function loadDocker(){try{$("dockerOutput").textContent=(await api("/docker")).output}catch(e){$("dockerOutput").textContent=e.message}}
+}catch(e){failure(e)}}
+async function loadPM2(){try{const data=await api("/pm2");$("pm2Table").innerHTML=data.map(p=>'<tr><td>'+esc(p.name)+'</td><td><span class="status '+(p.pm2_env?.status==="online"?"":"off")+'">'+esc(p.pm2_env?.status||"—")+'</span></td><td>'+esc(p.pid)+'</td><td>'+esc(p.pm2_env?.restart_time||0)+'</td><td>'+esc(((p.monit?.memory||0)/1048576).toFixed(1))+' MB</td></tr>').join("")||'<tr><td colspan="5">Nenhum processo.</td></tr>'}catch(e){failure(e)}}
+async function loadDocker(){try{$("dockerOutput").textContent=(await api("/docker")).output||"Nenhum container"}catch(e){$("dockerOutput").textContent=e.message}}
+async function loadPorts(){try{const data=await api("/ports");$("portsTable").innerHTML=data.map(p=>'<tr><td><strong>'+esc(p.port)+'</strong></td><td>'+esc(p.address)+'</td><td>'+esc(p.pid??"—")+'</td></tr>').join("")||'<tr><td colspan="3">Nenhuma porta identificada.</td></tr>'}catch(e){failure(e)}}
+$("reloadPm2").onclick=loadPM2;$("reloadDocker").onclick=loadDocker;$("reloadPorts").onclick=loadPorts;
 function disconnect(){if(socket){socket.close();socket=null}}
-$("connectTerminal").onclick=()=>{
- if(!terminalAllowed){$("term").textContent="Terminal desabilitado";return}
- disconnect();$("term").textContent="";
- socket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/terminal");
- socket.onmessage=e=>{$("term").textContent+=e.data;$("term").scrollTop=$("term").scrollHeight};
- socket.onclose=()=>{$("term").textContent+="\n[Conexão encerrada]\n";socket=null};
- socket.onerror=()=>{$("term").textContent+="\n[Erro de conexão]\n"};
-};
+$("connectTerminal").onclick=()=>{if(!terminalEnabled){notify("Terminal desabilitado no servidor");return}disconnect();$("term").textContent="";socket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/terminal");socket.onmessage=e=>{$("term").textContent+=e.data;$("term").scrollTop=$("term").scrollHeight};socket.onclose=()=>{$("term").textContent+="\n[Conexão encerrada]";socket=null};socket.onerror=()=>notify("Falha na conexão do terminal")};
 $("disconnectTerminal").onclick=disconnect;
-$("termInput").addEventListener("keydown",e=>{
- if(e.key==="Enter"&&socket?.readyState===WebSocket.OPEN){socket.send(e.target.value+"\n");e.target.value=""}
-});
+$("termInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&socket?.readyState===WebSocket.OPEN){socket.send(e.target.value+"\n");e.target.value=""}});
 init();
-</script></body></html>
+</script>
+</body></html>
