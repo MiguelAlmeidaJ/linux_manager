@@ -62,6 +62,14 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 </section>
 <section id="projects" class="hide">
 <div class="heading"><div><h1>Aplicações</h1><p>Repositórios Git, deploy, portas e gerenciamento de processos.</p></div><button id="showCreate">+ Nova aplicação</button></div>
+<div class="panel" id="sshPanel" style="margin-bottom:18px">
+<div class="section-top"><div><h2>GitHub · Chave SSH de deploy</h2><p class="small muted" style="margin:7px 0 0">Acesse repositórios privados com uma chave pública cadastrada no GitHub.</p></div><span class="badge" id="sshStatus">Verificando...</span></div>
+<div id="sshEmpty"><p class="small muted">Gere uma chave exclusiva para esta instalação. Cadastre a chave pública em <strong>GitHub → Repositório → Settings → Deploy keys → Add deploy key</strong>, sem marcar acesso de escrita.</p><button id="generateSSH" type="button">Gerar chave SSH</button></div>
+<div id="sshReady" class="hide"><label class="field">Chave pública (pode ser compartilhada com o GitHub)<input id="sshPublicKey" readonly aria-label="Chave SSH pública"></label>
+<div class="actions" style="margin-top:11px"><button type="button" class="ghost" id="copySSH">Copiar chave pública</button><a href="https://github.com/settings/keys" target="_blank" rel="noopener noreferrer" class="small" style="align-self:center">Minhas chaves do GitHub</a></div>
+<p class="help">Preferível: Deploy key somente leitura em cada repositório. A mesma chave não pode ser reutilizada como deploy key em repositórios diferentes; para vários repositórios, utilize uma chave SSH de conta ou uma conta de máquina com acesso mínimo. Nunca compartilhe a chave privada.</p>
+<div class="formgrid" style="margin-top:16px"><label class="field wide">Testar acesso ao repositório privado<input id="sshRepoToTest" placeholder="git@github.com:empresa/projeto.git"></label><div class="wide"><button id="testSSH" type="button" class="ghost">Testar acesso SSH</button></div></div></div>
+</div>
 <div class="panel hide" id="createPanel"><div class="section-top"><h2>Conectar repositório Git</h2><button class="subtle" id="closeCreate">Fechar</button></div><form id="projectForm" class="formgrid">
 <label class="field">Nome da aplicação<input name="name" placeholder="minha-api" required pattern="[A-Za-z0-9][A-Za-z0-9_-]*"></label>
 <label class="field">Branch<input name="branch" value="main" required></label>
@@ -93,7 +101,7 @@ async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
 function switchTab(page){active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
-if(page==="projects")loadProjects();if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
+if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
 async function refresh(){try{const [s,h,st]=await Promise.all([api("/stats"),api("/host"),api("/projects/status")]);latestStatus=st;$("hostname").textContent=s.hostname;const data=[
@@ -103,6 +111,17 @@ $("hostInfo").innerHTML=[["Host",h.hostname],["CPU",h.cpu_count+" núcleo(s)"],[
 $("summaryApps").className=st.length?"":"empty";$("summaryApps").innerHTML=st.length?st.slice(0,6).map(p=>'<div class="systemrow"><span>◇ '+esc(p.name)+' <span class="muted">:'+p.port+'</span></span><span class="status '+(p.status==="online"?"":"off")+'">'+esc(p.status)+'</span></div>').join(""):'<span class="glyph">◇</span><strong>Nenhuma aplicação cadastrada</strong>Cadastre seu primeiro repositório na aba Aplicações.';
 }catch(e){failure(e)}}
 setInterval(()=>{if(!$("app").classList.contains("hide")&&active==="dashboard")refresh()},6000);
+async function loadSSH(){
+ try{const d=await api("/ssh/github");$("sshStatus").textContent=d.configured?"Chave configurada":"Pendente";
+ $("sshEmpty").classList.toggle("hide",d.configured);$("sshReady").classList.toggle("hide",!d.configured);
+ if(d.configured)$("sshPublicKey").value=d.public_key;
+ }catch(e){failure(e)}
+}
+$("generateSSH").onclick=async()=>{
+ try{const d=await api("/ssh/github/generate","POST");$("sshPublicKey").value=d.public_key;notify("Chave gerada. Cadastre a chave pública no GitHub.");await loadSSH()}catch(e){failure(e)}
+};
+$("copySSH").onclick=async()=>{try{await navigator.clipboard.writeText($("sshPublicKey").value);notify("Chave pública copiada")}catch(e){failure(e)}};
+$("testSSH").onclick=async()=>{try{const d=await api("/ssh/github/test","POST",{repo:$("sshRepoToTest").value.trim()});result("GitHub SSH: acesso confirmado. Branches: "+d.branches.join(", "));notify("Repositório acessível")}catch(e){failure(e)}};
 $("showCreate").onclick=()=>$("createPanel").classList.remove("hide");$("closeCreate").onclick=()=>$("createPanel").classList.add("hide");
 $("projectForm").onsubmit=async e=>{e.preventDefault();let body=Object.fromEntries(new FormData(e.target));try{result("Clonando repositório...");await api("/projects","POST",body);notify("Projeto clonado");e.target.reset();$("createPanel").classList.add("hide");await loadProjects();await refresh()}catch(e){failure(e)}};
 async function operation(path,method="POST",body){try{result("Executando operação...");const data=await api(path,method,body);if(data.status==="queued"||data.status==="running"){notify("Operação iniciada. Acompanhando logs...");const base=path.replace(/\/(deploy|pull|update-deploy)$/,"");watchJob(base);return data}result(data.steps?data.steps.map(s=>s.step+"\n"+s.output).join("\n\n"):data.output??data);notify("Operação concluída");await loadProjects();return data}catch(e){failure(e)}}
