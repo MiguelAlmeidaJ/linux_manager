@@ -120,7 +120,7 @@ async function loadSSH(){
 $("generateSSH").onclick=async()=>{
  try{const d=await api("/ssh/github/generate","POST");$("sshPublicKey").value=d.public_key;notify("Chave gerada. Cadastre a chave pública no GitHub.");await loadSSH()}catch(e){failure(e)}
 };
-$("copySSH").onclick=async()=>{try{await navigator.clipboard.writeText($("sshPublicKey").value);notify("Chave pública copiada")}catch(e){failure(e)}};
+$("copySSH").onclick=async()=>{const input=$("sshPublicKey");try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(input.value)}else{input.focus();input.select();if(!document.execCommand("copy"))throw Error("Não foi possível copiar automaticamente")}notify("Chave pública copiada")}catch(e){input.focus();input.select();notify("Selecione e copie a chave pública manualmente (Ctrl+C)")}};
 $("testSSH").onclick=async()=>{try{const d=await api("/ssh/github/test","POST",{repo:$("sshRepoToTest").value.trim()});result("GitHub SSH: acesso confirmado. Branches: "+d.branches.join(", "));notify("Repositório acessível")}catch(e){failure(e)}};
 $("showCreate").onclick=()=>$("createPanel").classList.remove("hide");$("closeCreate").onclick=()=>$("createPanel").classList.add("hide");
 $("projectForm").onsubmit=async e=>{e.preventDefault();let body=Object.fromEntries(new FormData(e.target));try{result("Clonando repositório...");await api("/projects","POST",body);notify("Projeto clonado");e.target.reset();$("createPanel").classList.add("hide");await loadProjects();await refresh()}catch(e){failure(e)}};
