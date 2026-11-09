@@ -178,7 +178,12 @@ def pm2_start(name: str, payload: Start, request: Request):
     script = (path / payload.script).resolve()
     if not script.is_relative_to(path) or not script.is_file():
         raise HTTPException(400, "Script não encontrado dentro do projeto")
-    return {"output": command(["pm2", "start", str(script), "--name", f"lm-{name}", "--cwd", str(path)], timeout=40)}
+    if script.suffix not in (".js", ".cjs", ".mjs", ".py"):
+        raise HTTPException(400, "Use scripts .js, .cjs, .mjs ou .py")
+    args = ["pm2", "start", str(script), "--name", f"lm-{name}", "--cwd", str(path)]
+    if script.suffix == ".py":
+        args += ["--interpreter", "python3"]
+    return {"output": command(args, timeout=40)}
 
 @app.post("/api/projects/{name}/pm2/{action}")
 def pm2_action(name: str, action: str, request: Request):
