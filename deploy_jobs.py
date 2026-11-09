@@ -1,0 +1,218 @@
+"""Project-scoped deploy jobs and .env management. Single Uvicorn worker per installation."""
+import json
+import os
+import re
+import shlex
+import subprocess
+import threading
+import time
+from collections import deque
+from pathlib import Path
+
+from fastapi import HTTPException
+from pydantic import BaseModel, Field
+
+ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
+RESERVED = {"ADMIN_PASSWORD", "SESSION_SECRET", "PM2_HOME", "HOME", "PATH", "PORT"}
+ALLOWED_TOOLS = {"npm", "pnpm", "yarn", "corepack", "node", "python", "python3", "pip", "pip3", "uv", "uvicorn", "gunicorn", "poetry"}
+JOBS = {}
+JOBS_LOCK = threading.Lock()
+LOG_LIMIT = 120_000
+
+
+class EnvChange(BaseModel):
+    values: dict[str, str] = Field(default_factory=dict)
+    remove: list[str] = Field(default_factory=list)
+
+
+class AutoDeploy(BaseModel):
+    enabled: bool = False
+
+
+def env_path(projects_root: Path, name: str) -> Path:
+    folder = projects_root.parent / "env"
+    folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)
+    return folder / (name + ".json")
+
+
+def read_env(projects_root: Path, name: str) -> dict[str, str]:
+    f = env_path(projects_root, name)
+    if not f.exists():
+        return {}
+    try:
+        value = json.loads(f.read_text(encoding="utf-8"))
+        if not isinstance(value, dict) or not all(isinstance(v, str) for v in value.values()):
+            raise ValueError("Invalid env file")
+        return value
+    except (OSError, ValueError):
+        raise HTTPException(500, "Arquivo de variáveis do projeto inválido")
+
+
+def env_keys(projects_root: Path, name: str) -> list[str]:
+    return sorted(read_env(projects_root, name))
+
+
+def save_env(projects_root: Path, name: str, change: EnvChange):
+    old = read_env(projects_root, name)
+    for k, v in change.values.items():
+        if not ENV_KEY.fullmatch(k) or k in RESERVED or len(v) > 8192 or "\x00" in v:
+            raise HTTPException(400, "Nome de variável reservado/inválido ou valor muito longo")
+    for k in change.remove:
+        if not ENV_KEY.fullmatch(k) or k in RESERVED:
+            raise HTTPException(400, "Nome de variável inválido")
+    old.update(change.values)
+    for k in change.remove:
+        old.pop(k, None)
+    if len(old) > 100:
+        raise HTTPException(400, "Limite de 100 variáveis por projeto")
+    f = env_path(projects_root, name)
+    tmp = f.with_suffix(".tmp")
+    try:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(old, handle)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, f)
+    finally:
+        tmp.unlink(missing_ok=True)
+    return sorted(old)
+
+
+def environment(projects_root: Path, name: str):
+    base = {k: v for k, v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}
+    home = str(Path.home())
+    base.update({"HOME": home, "PM2_HOME": str(Path(home) / ".pm2")})
+    return {**base, **read_env(projects_root, name)}
+
+
+def safe_args(command):
+    try:
+        args = shlex.split(command)
+    except ValueError:
+        raise RuntimeError("Comando inválido")
+    if not args or args[0] not in ALLOWED_TOOLS or len(args) > 30:
+        raise RuntimeError("Comando não permitido")
+    if any("\x00" in a or "\n" in a or "\r" in a for a in args):
+        raise RuntimeError("Argumentos inválidos")
+    if args[0] in ("python", "python3") and len(args) >= 2 and args[1] == "-c":
+        raise RuntimeError("Python -c não permitido")
+    return args
+
+
+def mask(text, secrets):
+    for value in sorted(set(secrets.values()), key=len, reverse=True):
+        if value and len(value) >= 4:
+            text = text.replace(value, "[REDACTED]")
+    return text
+
+
+def run_process(args, cwd, env, add_log, timeout=300):
+    # Shell is never invoked. Stream line buffered stdout and stderr to a bounded job log.
+    add_log("$ " + " ".join(shlex.quote(a) for a in args) + "\n")
+    try:
+        proc = subprocess.Popen(args, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, errors="replace", bufsize=1, start_new_session=True)
+    except OSError as exc:
+        raise RuntimeError(f"Falha ao iniciar {args[0]}: {exc}") from exc
+    started = time.monotonic()
+    try:
+        # Timeout is enforced while reading by a separate watchdog.
+        timer = threading.Timer(timeout, lambda: proc.poll() is None and proc.kill())
+        timer.daemon = True
+        timer.start()
+        try:
+            for line in proc.stdout:
+                add_log(line)
+            code = proc.wait()
+        finally:
+            timer.cancel()
+        if time.monotonic() - started >= timeout:
+            raise RuntimeError("Tempo limite da etapa excedido")
+        if code != 0:
+            raise RuntimeError(f"Etapa falhou (exit {code})")
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+
+
+def start_job(name, root, entry, action, finish=None):
+    """One job at a time per project. Returns a read-only job snapshot."""
+    with JOBS_LOCK:
+        previous = JOBS.get(name)
+        if previous and previous["status"] in ("queued", "running"):
+            raise HTTPException(409, "Já existe uma operação em execução para este projeto")
+        job = {"status": "queued", "action": action, "started": time.time(),
+               "ended": None, "log": "", "error": None}
+        JOBS[name] = job
+
+    def worker():
+        secrets = read_env(root, name)
+        env = environment(root, name)
+        port = entry.get("port", 3000)
+        env["PORT"] = str(port)
+        project_path = root / name
+
+        def append(line):
+            line = mask(str(line), secrets)
+            with JOBS_LOCK:
+                job["log"] = (job["log"] + line)[-LOG_LIMIT:]
+
+        with JOBS_LOCK:
+            job["status"] = "running"
+        try:
+            if action in ("update", "update_deploy"):
+                branch = entry.get("branch", "main")
+                run_process(["git", "-c", "core.hooksPath=/dev/null", "pull", "--ff-only", "origin", branch],
+                            project_path, {**env, "GIT_TERMINAL_PROMPT": "0"}, append, 120)
+            if action in ("deploy", "update_deploy"):
+                if entry.get("runtime", "node") == "docker":
+                    run_process(["docker", "compose", "-p", "lm-" + name, "up", "-d", "--build"],
+                                project_path, env, append, 600)
+                else:
+                    for key in ("install_command", "build_command"):
+                        value = entry.get(key, "").strip()
+                        if value:
+                            run_process(safe_args(value), project_path, env, append, 600)
+                    starter = entry.get("start_command", "").strip()
+                    if not starter:
+                        raise RuntimeError("Configure o comando de inicialização antes do deploy")
+                    args = safe_args(starter)
+                    runtime = entry.get("runtime", "node")
+                    allowed = {"node": {"node", "npm", "pnpm", "yarn"},
+                               "python": {"python", "python3", "uv", "uvicorn", "gunicorn"}}
+                    if args[0] not in allowed.get(runtime, set()):
+                        raise RuntimeError("Comando de inicialização incompatível com o runtime")
+                    subprocess.run(["pm2", "delete", "lm-" + name], cwd=project_path, env=env,
+                                   capture_output=True, timeout=20)
+                    run_process(["pm2", "start", args[0], "--name", "lm-" + name,
+                                 "--cwd", str(project_path), "--", *args[1:]],
+                                project_path, env, append, 45)
+                    run_process(["pm2", "save"], project_path, env, append, 20)
+            append("\nOperação concluída.\n")
+            with JOBS_LOCK:
+                job["status"] = "success"
+        except Exception as exc:
+            append("\nERRO: " + str(exc) + "\n")
+            with JOBS_LOCK:
+                job["status"] = "failed"
+                job["error"] = mask(str(exc), secrets)
+        finally:
+            with JOBS_LOCK:
+                job["ended"] = time.time()
+            if finish:
+                finish(name, job["status"])
+
+    threading.Thread(target=worker, daemon=True, name="deploy-" + name).start()
+    return snapshot(name)
+
+
+def snapshot(name):
+    with JOBS_LOCK:
+        job = JOBS.get(name)
+        return {"status": job["status"], "action": job["action"], "started": job["started"],
+                "ended": job["ended"], "log": job["log"], "error": job["error"]} if job else {
+                    "status": "idle", "action": None, "log": "", "error": None, "started": None, "ended": None
+                }
