@@ -1,4 +1,6 @@
 import asyncio
+from collections import deque
+from threading import Event, Lock, Thread
 import hmac
 import json
 import os
@@ -29,6 +31,56 @@ SECURE_COOKIE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 TERMINAL_ENABLED = os.environ.get("TERMINAL_ENABLED", "false").lower() == "true"
 NAME = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}$")
 app = FastAPI(title="Linux Manager", docs_url=None, redoc_url=None, openapi_url=None)
+
+# Coleta passiva a cada 2 s; a requisição HTTP não executa mais uma
+# medição bloqueante de 100 ms, que era sensível a picos muito curtos.
+CPU_SAMPLES = deque(maxlen=30)  # últimos 60 segundos
+CPU_LOCK = Lock()
+CPU_STOP = Event()
+CPU_THREAD = None
+
+def cpu_sampler():
+    psutil.cpu_percent(interval=None)  # inicializa contador do processo de coleta
+    while not CPU_STOP.wait(2):
+        value = psutil.cpu_percent(interval=None)
+        with CPU_LOCK:
+            CPU_SAMPLES.append((time.monotonic(), value))
+
+@app.on_event("startup")
+def start_cpu_sampler():
+    global CPU_THREAD
+    CPU_STOP.clear()
+    CPU_THREAD = Thread(target=cpu_sampler, name="cpu-sampler", daemon=True)
+    CPU_THREAD.start()
+
+@app.on_event("shutdown")
+def stop_cpu_sampler():
+    CPU_STOP.set()
+    if CPU_THREAD:
+        CPU_THREAD.join(timeout=3)
+
+def cpu_metrics():
+    now = time.monotonic()
+    with CPU_LOCK:
+        samples = list(CPU_SAMPLES)
+    recent = [value for stamp, value in samples if now - stamp <= 30]
+    latest = samples[-1][1] if samples else 0.0
+    return {
+        "cpu": round(sum(recent) / len(recent), 1) if recent else 0.0,
+        "cpu_instant": round(latest, 1),
+        "cpu_samples": len(recent),
+        "cpu_window_seconds": 30,
+    }
+
+def subprocess_env():
+    env = {k: v for k, v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}
+    # O painel roda como linuxmanager; evite que variáveis vindas de sudo/root
+    # conectem o CLI do PM2 ao daemon de outro usuário.
+    home = str(Path.home())
+    env["HOME"] = home
+    env["PM2_HOME"] = str(Path(home) / ".pm2")
+    return env
+
 
 def authorized(token):
     try:
@@ -73,7 +125,7 @@ def get_project(name):
 def command(args, cwd=None, timeout=60):
     try:
         result = subprocess.run(args, cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True,
-                                text=True, timeout=timeout, env={**{k:v for k,v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}, "GIT_TERMINAL_PROMPT": "0"})
+                                text=True, timeout=timeout, env={**subprocess_env(), "GIT_TERMINAL_PROMPT": "0"})
     except FileNotFoundError:
         raise HTTPException(400, f"Ferramenta não instalada: {args[0]}")
     except subprocess.TimeoutExpired:
@@ -125,7 +177,7 @@ def stats(request: Request):
     disk = psutil.disk_usage("/")
     mem = psutil.virtual_memory()
     return {
-        "cpu": psutil.cpu_percent(interval=0.1), "memory": mem.percent,
+        **cpu_metrics(), "memory": mem.percent,
         "memory_used": mem.used, "memory_total": mem.total,
         "disk": disk.percent, "disk_used": disk.used, "disk_total": disk.total,
         "uptime": int(time.time() - psutil.boot_time()),
@@ -231,7 +283,7 @@ async def terminal(ws: WebSocket):
     await ws.accept()
     master, slave = pty.openpty()
     process = subprocess.Popen(["/bin/bash", "-i"], stdin=slave, stdout=slave, stderr=slave,
-                               cwd=ROOT, start_new_session=True, env={**{k:v for k,v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}, "TERM": "xterm-256color"})
+                               cwd=ROOT, start_new_session=True, env={**subprocess_env(), "TERM": "xterm-256color"})
     os.close(slave)
     loop = asyncio.get_running_loop()
     async def output():
@@ -354,7 +406,7 @@ def start_configured(name, entry, path):
         raise HTTPException(400, "Runtime inválido")
     # Stop/recreate configured process to apply new env/port and command.
     subprocess.run(["pm2", "delete", f"lm-{name}"], cwd=path, capture_output=True, timeout=25)
-    env = {k: v for k, v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}
+    env = subprocess_env()
     env["PORT"] = str(conf["port"])
     try:
         result = subprocess.run(
