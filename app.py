@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.responses import FileResponse, JSONResponse
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
+import deploy_jobs as dj
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -215,7 +216,7 @@ def create_project(payload: Project, request: Request):
 def update_project(name: str, request: Request):
     assert_auth(request)
     entry, path = get_project(name)
-    return {"output": command(["git", "-c", "core.hooksPath=/dev/null", "pull", "--ff-only", "origin", entry["branch"]], cwd=path, timeout=120)}
+    return dj.start_job(name, ROOT, entry, "update")
 
 @app.get("/api/pm2")
 def pm2_list(request: Request):
@@ -370,19 +371,7 @@ def configure_project(name: str, payload: AppConfig, request: Request):
 def deploy_project(name: str, request: Request):
     assert_auth(request)
     entry, path = get_project(name)
-    conf = config_for(entry)
-    if conf["runtime"] == "docker":
-        return {"steps": [
-            {"step": "Docker Compose", "output": docker_action(name, "up", request)["output"]}
-        ]}
-    if not conf["start_command"]:
-        raise HTTPException(400, "Configure o comando de inicialização antes do deploy")
-    outputs = []
-    for title, key, timeout in (("Instalação", "install_command", 300), ("Build", "build_command", 300)):
-        if conf[key].strip():
-            outputs.append({"step": title, "output": run_step(conf[key], path, timeout)})
-    outputs.append({"step": "Inicialização", "output": start_configured(name, entry, path)})
-    return {"steps": outputs}
+    return dj.start_job(name, ROOT, entry, "deploy")
 
 def start_configured(name, entry, path):
     conf = config_for(entry)
@@ -491,3 +480,82 @@ def safe_version(args):
         return subprocess.run(args, capture_output=True, text=True, timeout=5).stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         return "Não instalado"
+
+
+# --- Deploy jobs, private project environment and optional Git polling ---
+@app.get("/api/projects/{name}/env")
+def project_env_keys(name: str, request: Request):
+    assert_auth(request)
+    get_project(name)
+    return {"keys": dj.env_keys(ROOT, name)}
+
+@app.put("/api/projects/{name}/env")
+def project_env_update(name: str, payload: dj.EnvChange, request: Request):
+    assert_auth(request)
+    get_project(name)
+    return {"keys": dj.save_env(ROOT, name, payload)}
+
+@app.get("/api/projects/{name}/job")
+def project_job(name: str, request: Request):
+    assert_auth(request)
+    get_project(name)
+    return dj.snapshot(name)
+
+@app.post("/api/projects/{name}/update-deploy")
+def project_update_and_deploy(name: str, request: Request):
+    assert_auth(request)
+    entry, _ = get_project(name)
+    return dj.start_job(name, ROOT, entry, "update_deploy")
+
+@app.put("/api/projects/{name}/auto-deploy")
+def project_auto_deploy(name: str, payload: dj.AutoDeploy, request: Request):
+    assert_auth(request)
+    get_project(name)
+    data = records()
+    data[name]["auto_deploy"] = payload.enabled
+    save(data)
+    return {"enabled": payload.enabled}
+
+def auto_git_monitor():
+    # Off by default. Only registered projects with auto_deploy=true are inspected.
+    while not AUTO_GIT_STOP.wait(180):
+        try:
+            items = records()
+        except HTTPException:
+            continue
+        for name, entry in items.items():
+            if not entry.get("auto_deploy", False):
+                continue
+            if dj.snapshot(name)["status"] in ("queued", "running"):
+                continue
+            try:
+                _, path = get_project(name)
+                branch = entry["branch"]
+                env = {**subprocess_env(), "GIT_TERMINAL_PROMPT": "0"}
+                subprocess.run(["git", "fetch", "--quiet", "origin", branch],
+                               cwd=path, env=env, stdin=subprocess.DEVNULL,
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=45, check=True)
+                local = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=path, env=env, timeout=10).strip()
+                remote = subprocess.check_output(["git", "rev-parse", "FETCH_HEAD"], cwd=path, env=env, timeout=10).strip()
+                if local != remote:
+                    dj.start_job(name, ROOT, entry, "update_deploy")
+            except (OSError, subprocess.SubprocessError, HTTPException):
+                # A remote or SSH failure should never interrupt monitoring other projects.
+                continue
+
+AUTO_GIT_STOP = Event()
+AUTO_GIT_THREAD = None
+
+@app.on_event("startup")
+def start_auto_git():
+    global AUTO_GIT_THREAD
+    AUTO_GIT_STOP.clear()
+    AUTO_GIT_THREAD = Thread(target=auto_git_monitor, daemon=True, name="git-auto-deploy")
+    AUTO_GIT_THREAD.start()
+
+@app.on_event("shutdown")
+def stop_auto_git():
+    AUTO_GIT_STOP.set()
+    if AUTO_GIT_THREAD:
+        AUTO_GIT_THREAD.join(timeout=3)
