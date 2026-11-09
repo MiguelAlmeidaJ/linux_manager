@@ -105,7 +105,24 @@ $("summaryApps").className=st.length?"":"empty";$("summaryApps").innerHTML=st.le
 setInterval(()=>{if(!$("app").classList.contains("hide")&&active==="dashboard")refresh()},6000);
 $("showCreate").onclick=()=>$("createPanel").classList.remove("hide");$("closeCreate").onclick=()=>$("createPanel").classList.add("hide");
 $("projectForm").onsubmit=async e=>{e.preventDefault();let body=Object.fromEntries(new FormData(e.target));try{result("Clonando repositório...");await api("/projects","POST",body);notify("Projeto clonado");e.target.reset();$("createPanel").classList.add("hide");await loadProjects();await refresh()}catch(e){failure(e)}};
-async function operation(path,method="POST",body){try{result("Executando operação...");const data=await api(path,method,body);result(data.steps?data.steps.map(s=>s.step+"\n"+s.output).join("\n\n"):data.output??data);notify("Operação concluída");await loadProjects();return data}catch(e){failure(e)}}
+async function operation(path,method="POST",body){try{result("Executando operação...");const data=await api(path,method,body);if(data.status==="queued"||data.status==="running"){notify("Operação iniciada. Acompanhando logs...");const base=path.replace(/\/(deploy|pull|update-deploy)$/,"");watchJob(base);return data}result(data.steps?data.steps.map(s=>s.step+"\n"+s.output).join("\n\n"):data.output??data);notify("Operação concluída");await loadProjects();return data}catch(e){failure(e)}}
+const jobWatches=new Set();
+async function watchJob(base){
+ if(jobWatches.has(base))return;
+ jobWatches.add(base);
+ try{
+  for(let attempt=0;attempt<360;attempt++){
+   const job=await api(base+"/job");
+   result("Deploy: "+job.action+" · "+job.status+"\n\n"+(job.log||"Preparando..."));
+   if(job.status==="success"||job.status==="failed"){
+    notify(job.status==="success"?"Deploy concluído":"Deploy falhou — consulte os logs");
+    await loadProjects();await refresh();break
+   }
+   await new Promise(r=>setTimeout(r,2000))
+  }
+ }catch(e){failure(e)}
+ finally{jobWatches.delete(base)}
+}
 const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,install_command:p.install_command??"",build_command:p.build_command??"",start_command:p.start_command??""});
 async function loadProjects(){try{const [projects,status]=await Promise.all([api("/projects"),api("/projects/status")]);latestProjects=projects;latestStatus=status;const el=$("projectList");el.replaceChildren();
 if(!projects.length){el.className="empty";el.innerHTML='<span class="glyph">◇</span><strong>Nenhuma aplicação ainda</strong>Conecte seu primeiro repositório Git para começar.';return}el.className="";
@@ -116,14 +133,26 @@ const controls=document.createElement("div");controls.className="proj-tools";
 function btn(title,cb,primary=false){const b=document.createElement("button");b.textContent=title;b.className=primary?"":"ghost";b.onclick=cb;controls.append(b)}
 const path="/projects/"+encodeURIComponent(p.name);
 btn("Configurar",()=>toggleConfig());btn("Deploy",()=>operation(path+"/deploy"),true);
-btn("Git pull",()=>operation(path+"/pull"));btn("Iniciar",()=>operation(path+"/process/start"));btn("Parar",()=>operation(path+"/process/stop"));btn("Reiniciar",()=>operation(path+"/process/restart"));btn("Logs",()=>operation(path+"/process/logs"));
+btn("Git pull",()=>operation(path+"/pull"));btn("Atualizar + deploy",()=>operation(path+"/update-deploy"));btn("Variáveis .env",()=>toggleEnv());btn("Log de deploy",()=>watchJob(path));btn("Iniciar",()=>operation(path+"/process/start"));btn("Parar",()=>operation(path+"/process/stop"));btn("Reiniciar",()=>operation(path+"/process/restart"));btn("Logs",()=>operation(path+"/process/logs"));
 card.append(controls);
 const cfg=document.createElement("div");cfg.className="hide";cfg.style.marginTop="20px";
 cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="npm install"></label><label class="field wide">Comando de build<input name="build_command" placeholder="npm run build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: o deploy executa instalação e build, depois inicia pelo PM2. Docker: utiliza o arquivo Compose do repositório.</p></div></form>';
 const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});
 form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);await operation(path+"/config","PUT",o);cfg.classList.add("hide")};
-card.append(cfg);el.append(card);
+card.append(cfg);
+const envPanel=document.createElement("div");envPanel.className="hide";envPanel.style.marginTop="18px";
+envPanel.innerHTML='<div class="divider"></div><h3>Variáveis de ambiente</h3><p class="help">Os valores são armazenados fora do repositório e nunca são devolvidos pela API. Salvar novos valores substitui somente as chaves informadas. É necessário fazer novo deploy para aplicar alterações.</p><div class="small muted" data-envkeys>Carregando...</div><form class="formgrid" style="margin-top:15px"><label class="field">Nome da variável<input name="key" placeholder="DATABASE_URL" required></label><label class="field">Valor<input name="value" type="password" placeholder="Novo valor" required autocomplete="off"></label><div class="wide actions"><button>Salvar variável</button><button type="button" class="ghost" data-remove>Excluir chave</button></div></form>';
+const envForm=envPanel.querySelector("form");
+envForm.onsubmit=async e=>{e.preventDefault();const key=envForm.elements.key.value.trim();const value=envForm.elements.value.value;try{await api(path+"/env","PUT",{values:{[key]:value},remove:[]});envForm.elements.value.value="";notify("Variável salva");await displayKeys()}catch(e){failure(e)}};
+envPanel.querySelector("[data-remove]").onclick=async()=>{const key=envForm.elements.key.value.trim();if(!key||!confirm("Excluir a variável "+key+"?"))return;try{await api(path+"/env","PUT",{values:{},remove:[key]});notify("Variável excluída");await displayKeys()}catch(e){failure(e)}};
+async function displayKeys(){try{const d=await api(path+"/env");envPanel.querySelector("[data-envkeys]").textContent=d.keys.length?"Chaves cadastradas: "+d.keys.join(", "):"Nenhuma variável cadastrada."}catch(e){failure(e)}}
+card.append(envPanel);
+const autoPanel=document.createElement("div");autoPanel.style.marginTop="14px";autoPanel.innerHTML='<label class="small muted" style="display:flex;gap:9px;align-items:center"><input type="checkbox" style="width:auto" data-autogit> Atualização automática pelo Git a cada 3 minutos (faz pull e deploy quando houver alterações)</label>';
+const autoCheckbox=autoPanel.querySelector("[data-autogit]");autoCheckbox.checked=!!p.auto_deploy;
+autoCheckbox.onchange=async()=>{try{await api(path+"/auto-deploy","PUT",{enabled:autoCheckbox.checked});notify(autoCheckbox.checked?"Auto deploy ativado":"Auto deploy desativado")}catch(e){autoCheckbox.checked=!autoCheckbox.checked;failure(e)}};
+card.append(autoPanel);el.append(card);
 function toggleConfig(){cfg.classList.toggle("hide");}
+function toggleEnv(){envPanel.classList.toggle("hide");if(!envPanel.classList.contains("hide"))displayKeys()}
 }
 }catch(e){failure(e)}}
 async function loadPM2(){try{const data=await api("/pm2");$("pm2Table").innerHTML=data.map(p=>'<tr><td>'+esc(p.name)+'</td><td><span class="status '+(p.pm2_env?.status==="online"?"":"off")+'">'+esc(p.pm2_env?.status||"—")+'</span></td><td>'+esc(p.pid)+'</td><td>'+esc(p.pm2_env?.restart_time||0)+'</td><td>'+esc(((p.monit?.memory||0)/1048576).toFixed(1))+' MB</td></tr>').join("")||'<tr><td colspan="5">Nenhum processo.</td></tr>'}catch(e){failure(e)}}
