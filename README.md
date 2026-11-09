@@ -63,3 +63,36 @@ Um painel de deploy com terminal fornece controle efetivo sobre os projetos do u
 ## Próximas etapas
 
 Domínios e proxy reverso, logs em streaming, implantação automatizada por tipo de projeto, configuração de variáveis por projeto, backups e serviços systemd.
+
+
+## Instalação automatizada para teste por IP (HTTP)
+
+**Aviso:** HTTP transmite credenciais e cookies sem criptografia. Use apenas para testes temporários em rede controlada. Para acesso remoto permanente, configure HTTPS e mantenha `TERMINAL_ENABLED=false` até ativar HTTPS.
+
+Este instalador **modifica pacotes e serviços do servidor**. Leia `deploy/install.sh` antes de executá-lo. Em Ubuntu/Debian amd64 ou arm64, com conta sudo:
+
+```bash
+git clone https://github.com/MiguelAlmeidaJ/linux_manager.git
+cd linux_manager
+sudo bash deploy/install.sh
+```
+
+Ele instala Node.js 24, PM2, Docker Engine, Compose e as dependências Python, configura usuário `linuxmanager`, systemd e faz o painel escutar em `0.0.0.0:8765`. Credenciais novas ficam somente em `/root/linux-manager-credentials.txt`. Para consultar: `sudo cat /root/linux-manager-credentials.txt`.
+
+Se o UFW estiver **ativo**, libera TCP 8765; se estiver inativo, não o habilita automaticamente para não arriscar bloquear o acesso SSH. Nesse caso, confira as regras do firewall de rede/provedor e, para habilitar UFW manualmente, libere **antes** a porta SSH efetivamente usada pelo servidor. Caso queira restringir a origem, prefira liberar TCP 8765 apenas para seu IP.
+
+Verificações:
+
+```bash
+sudo systemctl status linux-manager
+sudo systemctl status docker
+sudo ss -lntp | grep 8765
+curl -I http://127.0.0.1:8765
+node -v
+pm2 -v
+docker compose version
+```
+
+Acesse `http://IP-DO-SERVIDOR:8765` se também estiver liberado no firewall do provedor. O grupo `docker` oferece acesso equivalente a root: não instale este painel em servidores com usuários ou aplicações não confiáveis. As aplicações gerenciadas executam com permissões do usuário `linuxmanager`.
+
+Para logs: `sudo journalctl -u linux-manager -f`. Para reiniciar: `sudo systemctl restart linux-manager`. 
