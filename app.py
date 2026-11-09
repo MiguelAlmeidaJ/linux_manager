@@ -73,7 +73,7 @@ def get_project(name):
 def command(args, cwd=None, timeout=60):
     try:
         result = subprocess.run(args, cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True,
-                                text=True, timeout=timeout, env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+                                text=True, timeout=timeout, env={**{k:v for k,v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}, "GIT_TERMINAL_PROMPT": "0"})
     except FileNotFoundError:
         raise HTTPException(400, f"Ferramenta não instalada: {args[0]}")
     except subprocess.TimeoutExpired:
@@ -226,7 +226,7 @@ async def terminal(ws: WebSocket):
     await ws.accept()
     master, slave = pty.openpty()
     process = subprocess.Popen(["/bin/bash", "-i"], stdin=slave, stdout=slave, stderr=slave,
-                               cwd=ROOT, start_new_session=True, env={**os.environ, "TERM": "xterm-256color"})
+                               cwd=ROOT, start_new_session=True, env={**{k:v for k,v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}, "TERM": "xterm-256color"})
     os.close(slave)
     loop = asyncio.get_running_loop()
     async def output():
