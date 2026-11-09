@@ -190,3 +190,30 @@ Abra o painel e faça `Ctrl+Shift+R`. A configuração anterior dos projetos é 
 ### Limitações / próximos passos
 
 O fluxo atual não oferece rollback automático nem publicação HTTPS/domínio. Logs incrementais dependem de a ferramenta utilizada emitir saída continuamente (algumas ferramentas fazem buffering). O job em andamento não é retomado após reinício do Linux Manager. O monitor Git usa polling em vez de webhooks. O campo de porta não reconfigura a porta interna de um Compose; essa configuração permanece no `compose.yaml` do projeto. O comando de inicialização Python/Node deve respeitar a variável `PORT` ou informar a porta no próprio comando.
+
+## v0.5 — GitHub privado com SSH e atualização automática da main
+
+O painel agora oferece **Aplicações → GitHub · Chave SSH de deploy**:
+
+1. Clique em **Gerar chave SSH**. O par Ed25519 é criado localmente no usuário `linuxmanager`, em `/home/linuxmanager/.ssh/linux_manager_github_ed25519`. O servidor nunca entrega a chave privada por API.
+2. Copie a chave **pública** exibida. No GitHub, acesse **Settings → Deploy keys → Add deploy key** do repositório privado. Não marque **Allow write access**.
+3. Para repositórios adicionais, atenção: **o GitHub não permite reutilizar a mesma deploy key em vários repositórios**. Nesse cenário, cadastre a chave pública em uma conta de máquina dedicada, com acesso de leitura apenas aos repositórios necessários, ou implemente chaves por projeto. A chave pública também pode ser cadastrada em **GitHub → Settings → SSH and GPG keys** da conta autorizada, mas isso concede os acessos dessa conta à chave.
+4. Teste o endereço SSH `git@github.com:ORGANIZACAO/REPOSITORIO.git` na tela. Depois cadastre a aplicação utilizando o mesmo endereço e configure **branch `main`**.
+5. Configure runtime, porta e comandos de deploy. Ative **Atualização automática pelo Git** na aplicação. O servidor faz polling do GitHub aproximadamente a cada 3 minutos; se houver commit novo na branch configurada, executa `pull --ff-only`, instalação, build e reinicialização. O monitoramento também funciona em repositórios privados autorizados.
+
+Para autenticar o host remoto, o Linux Manager usa a chave pública **Ed25519 oficial do GitHub fixada** em um arquivo known_hosts próprio, com `StrictHostKeyChecking=yes`. A impressão digital oficial é `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`.
+
+**Atualização em servidor existente**:
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python3 -m py_compile app.py deploy_jobs.py github_ssh.py
+exit
+sudo systemctl restart linux-manager
+```
+
+Depois atualize o navegador com Ctrl+Shift+R. Em projetos privados, a chave precisa primeiro ser autorizada no GitHub; gerar a chave sozinho **não** concede acesso. Portas SSH de saída (22/TCP) precisam estar liberadas, salvo uso de outra configuração externa de SSH.
+
+**Segurança:** por estar atualmente exposto em HTTP, o painel não deve ser acessado na internet aberta. Uma sessão interceptada permite executar deploys e administrar chaves públicas. Para utilização permanente, adote HTTPS, restrinja acesso à rede/VPN e mantenha a chave privada protegida.
