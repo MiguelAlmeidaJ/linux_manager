@@ -73,7 +73,7 @@ fi
 
 echo "==> Permissões e PM2"
 usermod -aG docker linuxmanager
-runuser -u linuxmanager -- env HOME=/home/linuxmanager pm2 ping >/dev/null
+runuser -u linuxmanager -- env HOME=/home/linuxmanager PM2_HOME=/home/linuxmanager/.pm2 pm2 ping >/dev/null
 pm2 startup systemd -u linuxmanager --hp /home/linuxmanager >/dev/null
 systemctl enable pm2-linuxmanager || true
 
@@ -100,7 +100,7 @@ fi
 echo "==> Verificação"
 node -v
 npm -v
-pm2 -v
+runuser -u linuxmanager -- env HOME=/home/linuxmanager PM2_HOME=/home/linuxmanager/.pm2 pm2 -v
 docker --version
 docker compose version
 systemctl --no-pager --full status linux-manager | head -n 15 || true
