@@ -162,3 +162,31 @@ sudo -iu linuxmanager pm2 list
 Não execute `sudo pm2 list` depois da limpeza: o próprio comando pode reiniciar um daemon PM2 do root. Se precisar examinar, use `ps -eo user,args | grep '[G]od Daemon'`.
 
 No navegador, utilize Ctrl+Shift+R após atualizar. Confirme que o cartão CPU mostra `Média 30s`.
+
+## v0.4 — Deploy em segundo plano, variáveis e Git automático
+
+Na aba **Aplicações**, configure runtime, porta e comandos. Em **Variáveis .env**, cadastre chave e valor; os valores ficam em `/srv/linux-manager/env/NOME.json`, com permissão 0600, **fora do repositório Git**. A interface mostra apenas nomes das chaves, nunca os valores. O sistema injeta essas variáveis no processo durante instalação, build e deploy (e `PORT` para Node/Python). Alterações de variáveis exigem novo deploy; para Docker Compose, variáveis são passadas no ambiente do comando Compose.
+
+**Deploy**, **Git pull** e **Atualizar + deploy** executam como trabalhos de fundo. O painel consulta `/api/projects/NOME/job` a cada 2 segundos e exibe o log incremental da tarefa. Os logs são temporários e ficam apenas na memória do processo; após reiniciar o serviço desaparecem. Saídas das ferramentas podem revelar dados sensíveis gerados pelo próprio projeto: evite comandos que imprimam segredos. Valores das variáveis cadastradas são mascarados nos logs quando possível.
+
+**Atualização automática pelo Git** é opt-in, por projeto, e fica desabilitada por padrão. Quando ativada, o Linux Manager verifica `origin/branch` aproximadamente a cada 3 minutos. Se encontrar commit diferente, faz `git pull --ff-only` e um novo deploy. Credenciais Git (inclusive SSH) devem estar acessíveis ao usuário `linuxmanager`. Não ative em projetos que não tenham sido testados; um commit pode reiniciar a aplicação.
+
+As operações usam exclusivamente o usuário Linux `linuxmanager` e não concedem privilégios adicionais aos projetos. O Docker continua sendo altamente privilegiado via grupo `docker`.
+
+### Atualização instalada
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python3 -m py_compile app.py deploy_jobs.py
+exit
+sudo systemctl restart linux-manager
+sudo journalctl -u linux-manager -n 30 --no-pager
+```
+
+Abra o painel e faça `Ctrl+Shift+R`. A configuração anterior dos projetos é mantida. O serviço deve permanecer com **um worker** de Uvicorn, pois jobs e monitor automático são mantidos na memória.
+
+### Limitações / próximos passos
+
+O fluxo atual não oferece rollback automático nem publicação HTTPS/domínio. Logs incrementais dependem de a ferramenta utilizada emitir saída continuamente (algumas ferramentas fazem buffering). O job em andamento não é retomado após reinício do Linux Manager. O monitor Git usa polling em vez de webhooks. O campo de porta não reconfigura a porta interna de um Compose; essa configuração permanece no `compose.yaml` do projeto. O comando de inicialização Python/Node deve respeitar a variável `PORT` ou informar a porta no próprio comando.
