@@ -38,7 +38,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto;f
 <div class="nav"><button data-tab="dashboard" class="active">Dashboard</button><button data-tab="projects">Projetos</button><button data-tab="pm2">PM2</button><button data-tab="docker">Docker</button><button data-tab="terminal">Terminal</button></div>
 <section id="dashboard"><h2>Visão geral</h2><div class="cards" id="metrics"></div><p class="small muted">Dados atualizados a cada 5 segundos.</p></section>
 <section id="projects" class="hide"><h2>Projetos Git</h2><div class="card"><h3>Adicionar projeto</h3><form id="projectForm" class="form-grid"><label>Nome<input name="name" placeholder="minha-api" required></label><label>Repositório HTTPS ou SSH<input name="repo" placeholder="https://github.com/usuario/projeto.git" required></label><label>Branch<input name="branch" value="main" required></label><button>Criar projeto</button></form></div><div class="card"><h3>Projetos cadastrados</h3><div id="projectList"></div></div></section>
-<section id="pm2" class="hide"><h2>Processos PM2</h2><button onclick="loadPM2()">Atualizar processos</button><pre id="pm2Output">Carregando...</pre><p class="small muted">Para iniciar uma aplicação, abra Projetos e informe o script JavaScript.</p></section>
+<section id="pm2" class="hide"><h2>Processos PM2</h2><button onclick="loadPM2()">Atualizar processos</button><pre id="pm2Output">Carregando...</pre><p class="small muted">Para iniciar uma aplicação, abra Projetos e informe o script Node.js ou Python.</p></section>
 <section id="docker" class="hide"><h2>Containers Docker</h2><button onclick="loadDocker()">Atualizar containers</button><pre id="dockerOutput">Carregando...</pre><p class="small muted">Para executar um Compose, use as ações do projeto cadastrado.</p></section>
 <section id="terminal" class="hide"><h2>Terminal do servidor</h2><p class="notice small">Comandos executados com a conta Linux do painel. Use apenas em rede privada ou sob HTTPS protegido.</p><button id="connectTerminal">Conectar terminal</button><button class="secondary" id="disconnectTerminal">Desconectar</button><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></section>
 <div class="card"><h3>Resultado da última operação</h3><pre id="output">Pronto.</pre></div>
@@ -85,7 +85,7 @@ async function loadProjects(){
  function add(label,fn){const button=document.createElement("button");button.className="secondary";button.textContent=label;button.onclick=fn;actions.append(button)}
  const act=(path,body)=>operate(path,"POST",body);
  add("Git pull",()=>act("/projects/"+p.name+"/pull"));
- add("Iniciar PM2",()=>{let script=prompt("Script de entrada do projeto (ex.: index.js)","index.js");if(script)act("/projects/"+p.name+"/pm2/start",{script})});
+ add("Iniciar PM2",()=>{let script=prompt("Script de entrada (ex.: index.js ou main.py)","index.js");if(script)act("/projects/"+p.name+"/pm2/start",{script})});
  add("Parar PM2",()=>act("/projects/"+p.name+"/pm2/stop"));
  add("Reiniciar PM2",()=>act("/projects/"+p.name+"/pm2/restart"));
  add("Logs PM2",()=>operate("/projects/"+p.name+"/pm2/logs"));
