@@ -96,3 +96,34 @@ docker compose version
 Acesse `http://IP-DO-SERVIDOR:8765` se também estiver liberado no firewall do provedor. O grupo `docker` oferece acesso equivalente a root: não instale este painel em servidores com usuários ou aplicações não confiáveis. As aplicações gerenciadas executam com permissões do usuário `linuxmanager`.
 
 Para logs: `sudo journalctl -u linux-manager -f`. Para reiniciar: `sudo systemctl restart linux-manager`. 
+
+## Painel v0.2: aplicações e deploy
+
+O novo layout contém navegação lateral, dashboard com dados em GB e uptime, projetos, PM2, Docker, portas em escuta e terminal.
+
+Cada projeto Git pode ter uma configuração independente:
+
+- **Runtime:** Node.js, Python ou Docker Compose.
+- **Porta:** valor de 1024 a 65535; para Node/Python, repassado no ambiente como `PORT`.
+- **Comando de instalação:** por exemplo `npm install`, `pnpm install` ou `python3 -m pip install -r requirements.txt`.
+- **Comando de build:** por exemplo `npm run build`.
+- **Inicialização:** por exemplo `npm run start`, `node server.js`, `python3 main.py` ou `uvicorn main:app --host 0.0.0.0 --port 3000` (a porta deve coincidir com a configurada, caso o comando a fixe).
+
+A ação **Deploy** roda instalação e build (quando configurados) e inicia o processo com PM2; em projetos Docker, chama `docker compose up -d --build`. As ações **Iniciar**, **Parar**, **Reiniciar**, **Git pull** e **Logs** ficam no cartão do projeto. O cadastro e as configurações existentes são preservados entre atualizações.
+
+Os comandos são executados com argumentos, **sem invocar shell**, com a lista de programas permitidos. Isso não substitui revisão de código: scripts npm, Python e Docker podem executar código arbitrário com as permissões da aplicação. Não implante repositórios não confiáveis.
+
+### Atualização da instalação existente
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+exit
+sudo systemctl restart linux-manager
+sudo systemctl status linux-manager --no-pager
+```
+
+Abra o painel e use `Ctrl+Shift+R` para descartar o cache da interface.
+
+**Limitações do MVP:** Não instala dependências específicas de cada repositório automaticamente além dos comandos informados; não verifica conflitos de porta antes de iniciar; não configura Nginx/domínios/SSL; a identificação de status Docker no resumo informa somente o runtime, não o estado de cada container. O deploy é síncrono, portanto builds muito longos podem bloquear aquela requisição. Para produção, uma fila de tarefas e logs progressivos são recomendados.
