@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Linux Manager</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,Arial;background:#0a101b;color:#e8eef8;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0}button,input{font:inherit}button{cursor:pointer}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #273248;padding:18px 5%}
+h1{font-size:20px;margin:0}h2{font-size:18px;margin:0 0 15px}h3{font-size:15px;margin:0 0 10px}
+main{max-width:1250px;margin:auto;padding:26px 5% 70px}.muted{color:#91a2bd}.small{font-size:13px}
+.nav{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0}.nav button{background:transparent;color:#bcc9dc}
+.nav button.active{background:#233956;color:#fff}
+button{background:#3e79db;border:1px solid #456eae;color:white;border-radius:9px;padding:9px 14px}
+button:hover{filter:brightness(1.15)}button.secondary{background:#1c2b40;border-color:#344760}
+input{background:#101b2c;border:1px solid #33445e;color:#fff;border-radius:8px;padding:11px;min-width:0;width:100%}
+.card{background:#121e30;border:1px solid #2b3b54;border-radius:14px;padding:22px;margin:14px 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px}
+.cards .card{margin:0}.value{font-size:26px;font-weight:700;margin:12px 0 5px}
+.bar{background:#28374d;border-radius:100px;overflow:hidden;height:7px;margin-top:13px}.bar>i{height:100%;display:block;background:#5a9bfa}
+.form-grid{display:grid;grid-template-columns:1fr 2fr 1fr auto;gap:10px;align-items:end}
+label{font-size:13px;color:#aebbd0;display:grid;gap:6px}.project{display:flex;align-items:center;justify-content:space-between;gap:15px;flex-wrap:wrap;border-top:1px solid #2b3b54;padding:17px 0}
+.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{font-size:12px;padding:8px 10px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:330px;overflow:auto;font-size:12px;line-height:1.6;background:#0a1423;border:1px solid #2b3b54;border-radius:10px;padding:17px}
+#term{background:#050a11;height:420px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#b2e3b3;font:13px/1.5 monospace;border-radius:10px;padding:15px}
+#termInput{font-family:monospace;margin-top:10px}
+#login{max-width:390px;margin:13vh auto;padding:30px}#login input{margin:16px 0}#login button{width:100%}
+.notice{border-left:3px solid #e3b463;padding-left:10px;color:#c9d0da}
+.hide{display:none!important}#status{font-size:13px;color:#91a2bd}
+@media(max-width:750px){.form-grid{grid-template-columns:1fr}header{padding:16px 5%}.project{align-items:start}}
+</style>
+</head>
+<body>
+<div id="login" class="card hide"><h1>Linux Manager</h1><p class="muted">Acesse seu servidor com segurança.</p><form id="loginForm"><input type="password" id="password" placeholder="Senha de administrador" autocomplete="current-password" required><button>Entrar</button></form><p id="loginError" class="small"></p></div>
+<div id="app" class="hide">
+<header><div><h1>◈ Linux Manager</h1><span class="small muted">Gerenciamento de um servidor</span></div><div><span id="status"></span> <button class="secondary" id="logout">Sair</button></div></header>
+<main>
+<div class="nav"><button data-tab="dashboard" class="active">Dashboard</button><button data-tab="projects">Projetos</button><button data-tab="pm2">PM2</button><button data-tab="docker">Docker</button><button data-tab="terminal">Terminal</button></div>
+<section id="dashboard"><h2>Visão geral</h2><div class="cards" id="metrics"></div><p class="small muted">Dados atualizados a cada 5 segundos.</p></section>
+<section id="projects" class="hide"><h2>Projetos Git</h2><div class="card"><h3>Adicionar projeto</h3><form id="projectForm" class="form-grid"><label>Nome<input name="name" placeholder="minha-api" required></label><label>Repositório HTTPS ou SSH<input name="repo" placeholder="https://github.com/usuario/projeto.git" required></label><label>Branch<input name="branch" value="main" required></label><button>Criar projeto</button></form></div><div class="card"><h3>Projetos cadastrados</h3><div id="projectList"></div></div></section>
+<section id="pm2" class="hide"><h2>Processos PM2</h2><button onclick="loadPM2()">Atualizar processos</button><pre id="pm2Output">Carregando...</pre><p class="small muted">Para iniciar uma aplicação, abra Projetos e informe o script JavaScript.</p></section>
+<section id="docker" class="hide"><h2>Containers Docker</h2><button onclick="loadDocker()">Atualizar containers</button><pre id="dockerOutput">Carregando...</pre><p class="small muted">Para executar um Compose, use as ações do projeto cadastrado.</p></section>
+<section id="terminal" class="hide"><h2>Terminal do servidor</h2><p class="notice small">Comandos executados com a conta Linux do painel. Use apenas em rede privada ou sob HTTPS protegido.</p><button id="connectTerminal">Conectar terminal</button><button class="secondary" id="disconnectTerminal">Desconectar</button><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></section>
+<div class="card"><h3>Resultado da última operação</h3><pre id="output">Pronto.</pre></div>
+</main></div>
+<script>
+const $=id=>document.getElementById(id);
+let tab="dashboard",socket=null,terminalAllowed=false;
+async function api(path,method="GET",body=null){
+ const options={method,headers:body?{"Content-Type":"application/json"}:{},credentials:"same-origin"};
+ if(body) options.body=JSON.stringify(body);
+ const res=await fetch("/api"+path,options);
+ const data=await res.json().catch(()=>({}));
+ if(!res.ok)throw new Error(typeof data.detail==="string"?data.detail:"Falha na operação");
+ return data;
+}
+function showLogin(){ $("login").classList.remove("hide");$("app").classList.add("hide"); }
+function showApp(){ $("login").classList.add("hide");$("app").classList.remove("hide"); }
+function result(s){$("output").textContent=typeof s==="string"?s:JSON.stringify(s,null,2)}
+function err(e){result("Erro: "+e.message)}
+async function init(){try{const d=await api("/me");terminalAllowed=d.terminal;showApp();await loadStats()}catch{showLogin()}}
+$("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}};
+$("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();showLogin()};
+document.querySelectorAll("[data-tab]").forEach(btn=>btn.onclick=()=>{
+ tab=btn.dataset.tab;document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b===btn));
+ ["dashboard","projects","pm2","docker","terminal"].forEach(id=>$(id).classList.toggle("hide",id!==tab));
+ if(tab==="projects")loadProjects();if(tab==="pm2")loadPM2();if(tab==="docker")loadDocker();
+ if(tab==="terminal"&&!terminalAllowed){$("term").textContent="Terminal desabilitado. Configure TERMINAL_ENABLED=true para habilitar."}
+});
+const human=b=>(b/1024/1024/1024).toFixed(1)+" GB";
+async function loadStats(){if($("app").classList.contains("hide"))return;
+ try{const d=await api("/stats");$("status").textContent=d.hostname;
+ const items=[["CPU",d.cpu+"%",d.cpu],["Memória",d.memory+"%",d.memory],["Disco",d.disk+"%",d.disk],["Projetos",d.projects,0]];
+ $("metrics").innerHTML=items.map(([label,value,percent])=>'<article class="card"><div class="muted small">'+label+'</div><div class="value">'+value+'</div><div class="bar"><i style="width:'+percent+'%"></i></div></article>').join("");
+ }catch(e){err(e)}}
+setInterval(loadStats,5000);
+async function loadProjects(){
+ try{const list=await api("/projects");const root=$("projectList");root.replaceChildren();
+ if(!list.length){root.textContent="Nenhum projeto cadastrado.";return}
+ for(const p of list){
+ const row=document.createElement("div");row.className="project";
+ const info=document.createElement("div");const name=document.createElement("strong");name.textContent=p.name;
+ const meta=document.createElement("div");meta.className="small muted";meta.textContent=p.repo+" · "+p.branch;info.append(name,meta);row.append(info);
+ const actions=document.createElement("div");actions.className="actions";
+ function add(label,fn){const button=document.createElement("button");button.className="secondary";button.textContent=label;button.onclick=fn;actions.append(button)}
+ const act=(path,body)=>operate(path,"POST",body);
+ add("Git pull",()=>act("/projects/"+p.name+"/pull"));
+ add("Iniciar PM2",()=>{let script=prompt("Script de entrada do projeto (ex.: index.js)","index.js");if(script)act("/projects/"+p.name+"/pm2/start",{script})});
+ add("Parar PM2",()=>act("/projects/"+p.name+"/pm2/stop"));
+ add("Reiniciar PM2",()=>act("/projects/"+p.name+"/pm2/restart"));
+ add("Logs PM2",()=>operate("/projects/"+p.name+"/pm2/logs"));
+ add("Compose up",()=>act("/projects/"+p.name+"/docker/up"));
+ add("Compose down",()=>act("/projects/"+p.name+"/docker/down"));
+ add("Logs Docker",()=>act("/projects/"+p.name+"/docker/logs"));
+ row.append(actions);root.append(row)
+ }
+ }catch(e){err(e)}
+}
+async function operate(path,method="GET",body=null){result("Executando operação...");try{const d=await api(path,method,body);result(d.output??d);if(tab==="projects")loadProjects()}catch(e){err(e)}}
+$("projectForm").onsubmit=async e=>{e.preventDefault();const form=new FormData(e.target);await operate("/projects","POST",Object.fromEntries(form));loadProjects()};
+async function loadPM2(){try{const d=await api("/pm2");$("pm2Output").textContent=d.map(p=>p.name+" | "+p.pm2_env?.status+" | PID "+p.pid).join("\n")||"Nenhum processo"}catch(e){$("pm2Output").textContent=e.message}}
+async function loadDocker(){try{$("dockerOutput").textContent=(await api("/docker")).output}catch(e){$("dockerOutput").textContent=e.message}}
+function disconnect(){if(socket){socket.close();socket=null}}
+$("connectTerminal").onclick=()=>{
+ if(!terminalAllowed){$("term").textContent="Terminal desabilitado";return}
+ disconnect();$("term").textContent="";
+ socket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/terminal");
+ socket.onmessage=e=>{$("term").textContent+=e.data;$("term").scrollTop=$("term").scrollHeight};
+ socket.onclose=()=>{$("term").textContent+="\n[Conexão encerrada]\n";socket=null};
+ socket.onerror=()=>{$("term").textContent+="\n[Erro de conexão]\n"};
+};
+$("disconnectTerminal").onclick=disconnect;
+$("termInput").addEventListener("keydown",e=>{
+ if(e.key==="Enter"&&socket?.readyState===WebSocket.OPEN){socket.send(e.target.value+"\n");e.target.value=""}
+});
+init();
+</script></body></html>
