@@ -149,10 +149,7 @@ def start_job(name, root, entry, action, finish=None):
         JOBS[name] = job
 
     def worker():
-        secrets = read_env(root, name)
-        env = environment(root, name)
-        port = entry.get("port", 3000)
-        env["PORT"] = str(port)
+        secrets = {}
         project_path = root / name
 
         def append(line):
@@ -163,6 +160,9 @@ def start_job(name, root, entry, action, finish=None):
         with JOBS_LOCK:
             job["status"] = "running"
         try:
+            secrets = read_env(root, name)
+            env = environment(root, name)
+            env["PORT"] = str(entry.get("port", 3000))
             if action in ("update", "update_deploy"):
                 branch = entry.get("branch", "main")
                 run_process(["git", "-c", "core.hooksPath=/dev/null", "pull", "--ff-only", "origin", branch],
