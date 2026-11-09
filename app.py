@@ -264,3 +264,178 @@ async def terminal(ws: WebSocket):
                 os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+
+
+# --- Application deployment management (v2) ---
+import shlex
+import socket
+from typing import Literal
+
+class AppConfig(BaseModel):
+    runtime: Literal["node", "python", "docker"] = "node"
+    port: int = Field(default=3000, ge=1024, le=65535)
+    install_command: str = Field(default="", max_length=400)
+    build_command: str = Field(default="", max_length=400)
+    start_command: str = Field(default="", max_length=400)
+
+def config_for(entry):
+    return {
+        "runtime": entry.get("runtime", "node"),
+        "port": entry.get("port", 3000),
+        "install_command": entry.get("install_command", ""),
+        "build_command": entry.get("build_command", ""),
+        "start_command": entry.get("start_command", ""),
+    }
+
+def run_step(step: str, path: Path, timeout: int = 240):
+    if not step.strip():
+        return "Etapa ignorada (sem comando configurado)"
+    try:
+        args = shlex.split(step)
+    except ValueError:
+        raise HTTPException(400, "Comando malformado")
+    if not args or len(args) > 30:
+        raise HTTPException(400, "Comando inválido")
+    # Only command/arguments, no shell expansion, pipelines or redirection.
+    if any(any(ch in a for ch in ("\n", "\r", "\x00")) for a in args):
+        raise HTTPException(400, "Caracteres inválidos")
+    if args[0] not in ("npm", "pnpm", "yarn", "corepack", "pip", "pip3", "python", "python3", "poetry", "uv"):
+        raise HTTPException(400, "Ferramenta não permitida neste comando")
+    if args[0] in ("python", "python3") and len(args) > 1 and args[1] not in ("-m",):
+        raise HTTPException(400, "Use python3 -m ... para instalar/build")
+    return command(args, cwd=path, timeout=timeout)
+
+@app.put("/api/projects/{name}/config")
+def configure_project(name: str, payload: AppConfig, request: Request):
+    assert_auth(request)
+    get_project(name)
+    data = records()
+    data[name].update(payload.model_dump())
+    save(data)
+    return {"ok": True, "config": config_for(data[name])}
+
+@app.post("/api/projects/{name}/deploy")
+def deploy_project(name: str, request: Request):
+    assert_auth(request)
+    entry, path = get_project(name)
+    conf = config_for(entry)
+    if conf["runtime"] == "docker":
+        return {"steps": [
+            {"step": "Docker Compose", "output": docker_action(name, "up", request)["output"]}
+        ]}
+    if not conf["start_command"]:
+        raise HTTPException(400, "Configure o comando de inicialização antes do deploy")
+    outputs = []
+    for title, key, timeout in (("Instalação", "install_command", 300), ("Build", "build_command", 300)):
+        if conf[key].strip():
+            outputs.append({"step": title, "output": run_step(conf[key], path, timeout)})
+    outputs.append({"step": "Inicialização", "output": start_configured(name, entry, path)})
+    return {"steps": outputs}
+
+def start_configured(name, entry, path):
+    conf = config_for(entry)
+    start = conf["start_command"]
+    if not start.strip():
+        raise HTTPException(400, "Configure um comando de inicialização")
+    try:
+        args = shlex.split(start)
+    except ValueError:
+        raise HTTPException(400, "Comando inicial inválido")
+    if not args or len(args) > 30 or any("\n" in a or "\r" in a for a in args):
+        raise HTTPException(400, "Comando inicial inválido")
+    # PM2 is responsible for process lifecycle, not a shell.
+    if conf["runtime"] == "node":
+        if args[0] not in ("npm", "pnpm", "yarn", "node"):
+            raise HTTPException(400, "Inicialização Node aceita npm, pnpm, yarn ou node")
+    elif conf["runtime"] == "python":
+        if args[0] not in ("python", "python3", "uv", "uvicorn", "gunicorn"):
+            raise HTTPException(400, "Inicialização Python aceita python, uv, uvicorn ou gunicorn")
+    else:
+        raise HTTPException(400, "Runtime inválido")
+    # Stop/recreate configured process to apply new env/port and command.
+    subprocess.run(["pm2", "delete", f"lm-{name}"], cwd=path, capture_output=True, timeout=25)
+    env = {k: v for k, v in os.environ.items() if k not in ("ADMIN_PASSWORD", "SESSION_SECRET")}
+    env["PORT"] = str(conf["port"])
+    try:
+        result = subprocess.run(
+            ["pm2", "start", args[0], "--name", f"lm-{name}", "--cwd", str(path), "--", *args[1:]],
+            cwd=path, env=env, capture_output=True, text=True, timeout=45
+        )
+    except FileNotFoundError:
+        raise HTTPException(400, "PM2 não encontrado")
+    if result.returncode:
+        raise HTTPException(400, (result.stdout + result.stderr)[-12000:])
+    return (result.stdout + result.stderr)[-12000:]
+
+@app.post("/api/projects/{name}/process/{action}")
+def configured_process(name: str, action: str, request: Request):
+    assert_auth(request)
+    entry, path = get_project(name)
+    if config_for(entry)["runtime"] == "docker":
+        if action in ("start", "restart"):
+            return docker_action(name, "up", request)
+        if action == "stop":
+            return docker_action(name, "down", request)
+        if action == "logs":
+            return docker_action(name, "logs", request)
+    if action == "start":
+        return {"output": start_configured(name, entry, path)}
+    if action in ("stop", "restart"):
+        return pm2_action(name, action, request)
+    if action == "logs":
+        return pm2_logs(name, request)
+    raise HTTPException(400, "Ação desconhecida")
+
+@app.get("/api/projects/status")
+def project_status(request: Request):
+    assert_auth(request)
+    data = records()
+    try:
+        processes = json.loads(command(["pm2", "jlist"], timeout=15))
+    except (HTTPException, ValueError):
+        processes = []
+    by_name = {p.get("name"): p for p in processes}
+    result = []
+    for name, entry in data.items():
+        proc = by_name.get(f"lm-{name}")
+        conf = config_for(entry)
+        status = (proc or {}).get("pm2_env", {}).get("status", "offline")
+        if conf["runtime"] == "docker":
+            status = "docker"
+        result.append({
+            "name": name, "runtime": conf["runtime"], "port": conf["port"],
+            "status": status, "pid": (proc or {}).get("pid"),
+            "restarts": (proc or {}).get("pm2_env", {}).get("restart_time", 0),
+        })
+    return result
+
+@app.get("/api/ports")
+def occupied_ports(request: Request):
+    assert_auth(request)
+    out = []
+    for c in psutil.net_connections(kind="inet"):
+        if c.status != psutil.CONN_LISTEN or not c.laddr:
+            continue
+        out.append({"port": c.laddr.port, "address": c.laddr.ip, "pid": c.pid})
+    return sorted(out, key=lambda item: (item["port"], item["address"]))[:300]
+
+@app.get("/api/host")
+def host_details(request: Request):
+    assert_auth(request)
+    disk = psutil.disk_usage("/")
+    mem = psutil.virtual_memory()
+    return {
+        "hostname": socket.gethostname(), "cpu_count": psutil.cpu_count(),
+        "memory_used": mem.used, "memory_total": mem.total,
+        "disk_used": disk.used, "disk_total": disk.total,
+        "uptime": int(time.time() - psutil.boot_time()),
+        "node_version": safe_version(["node", "--version"]),
+        "pm2_version": safe_version(["pm2", "--version"]),
+        "docker_version": safe_version(["docker", "--version"]),
+    }
+
+def safe_version(args):
+    try:
+        return subprocess.run(args, capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.TimeoutExpired):
+        return "Não instalado"
