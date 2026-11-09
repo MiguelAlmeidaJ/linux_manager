@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 import deploy_jobs as dj
+import github_ssh as ghssh
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -123,10 +124,10 @@ def get_project(name):
         raise HTTPException(400, "Diretório inválido")
     return data[name], path
 
-def command(args, cwd=None, timeout=60):
+def command(args, cwd=None, timeout=60, env_override=None):
     try:
         result = subprocess.run(args, cwd=cwd, stdin=subprocess.DEVNULL, capture_output=True,
-                                text=True, timeout=timeout, env={**subprocess_env(), "GIT_TERMINAL_PROMPT": "0"})
+                                text=True, timeout=timeout, env=env_override or {**subprocess_env(), "GIT_TERMINAL_PROMPT": "0"})
     except FileNotFoundError:
         raise HTTPException(400, f"Ferramenta não instalada: {args[0]}")
     except subprocess.TimeoutExpired:
@@ -207,7 +208,7 @@ def create_project(payload: Project, request: Request):
     path = ROOT / payload.name
     if payload.name in data or path.exists():
         raise HTTPException(409, "Projeto já existe")
-    command(["git", "clone", "--depth", "1", "--branch", payload.branch, "--", payload.repo, str(path)], timeout=180)
+    command(["git", "clone", "--depth", "1", "--branch", payload.branch, "--", payload.repo, str(path)], timeout=180, env_override=ghssh.git_environment(subprocess_env()))
     data[payload.name] = {"repo": payload.repo, "branch": payload.branch}
     save(data)
     return {"ok": True}
@@ -531,7 +532,7 @@ def auto_git_monitor():
             try:
                 _, path = get_project(name)
                 branch = entry["branch"]
-                env = {**subprocess_env(), "GIT_TERMINAL_PROMPT": "0"}
+                env = ghssh.git_environment(subprocess_env())
                 subprocess.run(["git", "fetch", "--quiet", "origin", branch],
                                cwd=path, env=env, stdin=subprocess.DEVNULL,
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -559,3 +560,23 @@ def stop_auto_git():
     AUTO_GIT_STOP.set()
     if AUTO_GIT_THREAD:
         AUTO_GIT_THREAD.join(timeout=3)
+
+
+class SSHRepoTest(BaseModel):
+    repo: str = Field(min_length=15, max_length=500)
+
+@app.get("/api/ssh/github")
+def github_ssh_status(request: Request):
+    assert_auth(request)
+    return ghssh.status()
+
+@app.post("/api/ssh/github/generate")
+def github_ssh_generate(request: Request):
+    assert_auth(request)
+    ghssh.generate_key()
+    return ghssh.status()
+
+@app.post("/api/ssh/github/test")
+def github_ssh_test(payload: SSHRepoTest, request: Request):
+    assert_auth(request)
+    return ghssh.test_repository(payload.repo)
