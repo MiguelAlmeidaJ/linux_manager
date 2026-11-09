@@ -1,0 +1,23 @@
+[Unit]
+Description=Linux Manager single-server panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=linuxmanager
+Group=linuxmanager
+WorkingDirectory=/opt/linux-manager
+EnvironmentFile=/opt/linux-manager/.env
+ExecStart=/opt/linux-manager/.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8765
+Restart=on-failure
+RestartSec=3
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=false
+ReadWritePaths=/srv/linux-manager /opt/linux-manager
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
