@@ -20,6 +20,7 @@ from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 import deploy_jobs as dj
 import github_ssh as ghssh
+import database_manager as dbm
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -640,3 +641,35 @@ def github_ssh_generate(request: Request):
 def github_ssh_test(payload: SSHRepoTest, request: Request):
     assert_auth(request)
     return ghssh.test_repository(payload.repo)
+
+
+# --- Managed PostgreSQL/MySQL (single host) ---
+@app.get("/api/databases/services")
+def managed_services(request: Request):
+    assert_auth(request)
+    return dbm.services()
+
+@app.post("/api/databases/services/{engine}/start")
+def managed_service_start(engine: str, request: Request):
+    assert_auth(request)
+    return dbm.start(engine)
+
+@app.get("/api/databases")
+def managed_databases(request: Request):
+    assert_auth(request)
+    return dbm.list_db()
+
+@app.post("/api/databases")
+def managed_database_create(payload: dbm.NewDatabase, request: Request):
+    assert_auth(request)
+    return dbm.create(payload, records())
+
+@app.post("/api/databases/{engine}/{name}/users")
+def managed_db_user_create(engine: str, name: str, payload: dbm.NewUser, request: Request):
+    assert_auth(request)
+    return dbm.add_user(engine, name, payload)
+
+@app.post("/api/databases/{engine}/{name}/bind")
+def managed_db_bind(engine: str, name: str, payload: dbm.BindUser, request: Request):
+    assert_auth(request)
+    return dbm.bind(engine, name, payload, records())
