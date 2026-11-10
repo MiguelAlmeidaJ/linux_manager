@@ -314,3 +314,11 @@ Quando o Traefik termina o TLS, o navegador usa HTTPS, mas o Uvicorn pode recebe
 **Não configure** `TRUSTED_PROXY_IPS=0.0.0.0/0`. Não permita acesso geral à porta HTTP interna 8765: restrinja-a ao Traefik e, se necessário, ao loopback para acesso via SSH. Em versões futuras, prefira Unix socket ou uma rede interna exclusiva do proxy.
 
 O login agora deve utilizar cookie Secure no domínio HTTPS. Caso o backend ainda retorne 403, confirme primeiro o IP que ele realmente recebe, os cabeçalhos encaminhados e se `TRUSTED_PROXY_IPS` foi carregado pelo serviço systemd. Não desabilite a verificação de HTTPS.
+
+## Variáveis do .env.example no painel
+
+Na aba Aplicações, abra Variáveis .env e clique em **Carregar variáveis do .env.example**. A API lê somente os nomes de variáveis não comentadas no arquivo `.env.example` do projeto. A lista mostra quais chaves já possuem valor configurado e quais estão pendentes. Clique na chave para preencher seu valor individualmente.
+
+O procedimento não sobrescreve variáveis existentes, não importa valores de exemplo, não cria um `.env` físico e não envia segredos do cofre para o navegador. As variáveis cadastradas permanecem armazenadas no arquivo privado do Linux Manager, sendo injetadas no processo durante o deploy. Para aplicar novas variáveis é necessário executar o deploy novamente.
+
+Atualização: `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit`, `sudo systemctl restart linux-manager`.
