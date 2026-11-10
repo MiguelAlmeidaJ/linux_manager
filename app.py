@@ -274,27 +274,41 @@ def docker_action(name: str, action: str, request: Request):
         raise HTTPException(400, "Ação inválida")
     return {"output": command(args, cwd=path, timeout=300)}
 
-@app.websocket("/ws/terminal")
-async def terminal(ws: WebSocket):
-    host = ws.headers.get("host", "")
+def terminal_allowed(ws: WebSocket):
+    """Terminal is high privilege. Explicit opt-in and same-origin only."""
     origin = ws.headers.get("origin", "")
     parsed = urlparse(origin)
-    if not TERMINAL_ENABLED or not authorized(ws.cookies.get("lm_session")) or not origin or parsed.netloc != host or parsed.scheme not in ("http", "https"):
+    host = ws.headers.get("host", "")
+    if not TERMINAL_ENABLED or not authorized(ws.cookies.get("lm_session")):
+        return False
+    if not origin or parsed.netloc != host or parsed.scheme not in ("http", "https"):
+        return False
+    # Do not allow a web shell over an insecure public HTTP connection.
+    # HTTP is accepted only on loopback for an SSH tunnel to the server.
+    if parsed.scheme != "https" and parsed.hostname not in ("localhost", "127.0.0.1", "::1"):
+        return False
+    return True
+
+
+async def project_terminal_session(ws: WebSocket, cwd: Path):
+    if not terminal_allowed(ws):
         await ws.close(code=1008)
         return
     await ws.accept()
     master, slave = pty.openpty()
-    process = subprocess.Popen(["/bin/bash", "-i"], stdin=slave, stdout=slave, stderr=slave,
-                               cwd=ROOT, start_new_session=True, env={**subprocess_env(), "TERM": "xterm-256color"})
+    process = subprocess.Popen(
+        ["/bin/bash", "--noprofile", "--norc", "-i"], stdin=slave, stdout=slave,
+        stderr=slave, cwd=cwd, start_new_session=True,
+        env={**subprocess_env(), "TERM": "xterm-256color", "HISTFILE": "/dev/null"},
+    )
     os.close(slave)
-    loop = asyncio.get_running_loop()
-    async def output():
+    async def pump():
         while True:
             data = await asyncio.to_thread(os.read, master, 4096)
             if not data:
-                return
+                break
             await ws.send_text(data.decode(errors="replace"))
-    task = asyncio.create_task(output())
+    task = asyncio.create_task(pump())
     try:
         while True:
             msg = await ws.receive_text()
@@ -320,6 +334,24 @@ async def terminal(ws: WebSocket):
                 pass
 
 
+@app.websocket("/ws/projects/{name}/terminal")
+async def application_terminal(ws: WebSocket, name: str):
+    if not NAME.fullmatch(name):
+        await ws.close(code=1008)
+        return
+    try:
+        _, cwd = get_project(name)
+    except HTTPException:
+        await ws.close(code=1008)
+        return
+    await project_terminal_session(ws, cwd)
+
+
+@app.websocket("/ws/terminal")
+async def terminal(ws: WebSocket):
+    await project_terminal_session(ws, ROOT)
+
+
 # --- Application deployment management (v2) ---
 import shlex
 import socket
@@ -331,6 +363,8 @@ class AppConfig(BaseModel):
     install_command: str = Field(default="", max_length=400)
     build_command: str = Field(default="", max_length=400)
     start_command: str = Field(default="", max_length=400)
+    prepare_command: str = Field(default="", max_length=400)
+    process_mode: Literal["command", "ecosystem"] = "command"
 
 def config_for(entry):
     return {
@@ -339,6 +373,8 @@ def config_for(entry):
         "install_command": entry.get("install_command", ""),
         "build_command": entry.get("build_command", ""),
         "start_command": entry.get("start_command", ""),
+        "prepare_command": entry.get("prepare_command", ""),
+        "process_mode": entry.get("process_mode", "command"),
     }
 
 def run_step(step: str, path: Path, timeout: int = 240):
