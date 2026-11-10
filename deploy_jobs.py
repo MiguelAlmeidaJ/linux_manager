@@ -54,6 +54,37 @@ def env_keys(projects_root: Path, name: str) -> list[str]:
     return sorted(read_env(projects_root, name))
 
 
+def example_env_keys(project_path: Path, stored: dict[str, str]) -> dict:
+    """Read a tracked .env.example as suggestions only; never execute or save sample values."""
+    source = project_path / ".env.example"
+    if not source.is_file() or source.is_symlink():
+        return {"source": None, "variables": [], "missing": 0}
+    try:
+        if source.stat().st_size > 131072:
+            raise HTTPException(400, ".env.example é grande demais")
+        raw = source.read_text(encoding="utf-8")
+    except UnicodeError:
+        raise HTTPException(400, ".env.example não está em UTF-8")
+    names = []
+    seen = set()
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, sep, _ = line.partition("=")
+        key = key.strip()
+        if not sep or key in seen or not ENV_KEY.fullmatch(key) or key in RESERVED:
+            continue
+        seen.add(key)
+        names.append({"key": key, "configured": key in stored and bool(stored[key])})
+        if len(names) >= 100:
+            break
+    return {"source": ".env.example", "variables": names,
+            "missing": sum(not row["configured"] for row in names)}
+
+
 def save_env(projects_root: Path, name: str, change: EnvChange):
     old = read_env(projects_root, name)
     for k, v in change.values.items():
