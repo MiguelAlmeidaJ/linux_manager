@@ -34,6 +34,52 @@ class EnvExampleTests(unittest.TestCase):
             (project / ".env.example").symlink_to(secret)
             self.assertIsNone(dj.example_env_keys(project, {})["source"])
 
+    def test_sync_creates_private_file_preserving_values(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "projects"
+            project = root / "AiCorta"
+            project.mkdir(parents=True)
+            dj.save_env(root, "AiCorta", dj.EnvChange(values={
+                "DATABASE_URL": "postgresql://some-user:pass@127.0.0.1:5432/db",
+                "SYSTEM_NAME": 'Director "Ops"',
+            }))
+            target = project / ".env"
+            self.assertTrue(target.is_file())
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            data = target.read_text()
+            self.assertTrue(data.startswith(dj.ENV_HEADER + "\n"))
+            self.assertIn("DATABASE_URL=", data)
+            self.assertIn('SYSTEM_NAME="Director \\"Ops\\""', data)
+            dj.save_env(root, "AiCorta", dj.EnvChange(values={"SYSTEM_USERNAME": "system"}))
+            self.assertIn("SYSTEM_USERNAME=", target.read_text())
+            self.assertEqual(len(dj.read_env(root, "AiCorta")), 3)
+
+    def test_sync_does_not_overwrite_unmanaged_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "projects"
+            project = root / "AiCorta"
+            project.mkdir(parents=True)
+            target = project / ".env"
+            target.write_text("EXISTING=keep-me\n")
+            from fastapi import HTTPException
+            with self.assertRaises(HTTPException) as ctx:
+                dj.save_env(root, "AiCorta", dj.EnvChange(values={"SYSTEM_NAME": "new"}))
+            self.assertEqual(ctx.exception.status_code, 409)
+            self.assertEqual(target.read_text(), "EXISTING=keep-me\n")
+
+    def test_sync_refuses_symlink(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "projects"
+            project = root / "AiCorta"
+            project.mkdir(parents=True)
+            sensitive = Path(temp) / "sensitive"
+            sensitive.write_text("secret")
+            (project / ".env").symlink_to(sensitive)
+            from fastapi import HTTPException
+            with self.assertRaises(HTTPException):
+                dj.sync_project_dotenv(root, "AiCorta", {"SAFE": "yes"})
+            self.assertEqual(sensitive.read_text(), "secret")
+
     def test_missing_example(self):
         with tempfile.TemporaryDirectory() as temp:
             self.assertEqual(dj.example_env_keys(Path(temp), {}),
