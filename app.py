@@ -2,6 +2,7 @@ import asyncio
 from collections import deque
 from threading import Event, Lock, Thread
 import hmac
+import ipaddress
 import json
 import os
 import pty
@@ -643,13 +644,64 @@ def github_ssh_test(payload: SSHRepoTest, request: Request):
     return ghssh.test_repository(payload.repo)
 
 
-def require_secure_database_admin(request: Request):
-    # Passwords must not traverse plain HTTP on the network.
-    # The SSH tunnel uses localhost and reaches Uvicorn from loopback.
-    scheme = request.url.scheme
+def _trusted_proxy(peer: str) -> bool:
+    """Never trust forwarded headers unless the TCP peer is explicitly allowlisted.
+
+    TRUSTED_PROXY_IPS accepts comma-separated IPs or CIDRs. Only use exact
+    Traefik source IPs or a narrowly scoped network, never 0.0.0.0/0.
+    """
+    configured = os.environ.get("TRUSTED_PROXY_IPS", "")
+    try:
+        remote = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    for part in configured.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            network = ipaddress.ip_network(part, strict=False)
+        except ValueError:
+            continue
+        if network.prefixlen == 0:
+            continue
+        if remote in network:
+            return True
+    return False
+
+
+def _secure_proxy_origin(request: Request) -> bool:
+    """Confirm an HTTPS-origin browser request through a trusted proxy peer.
+
+    Do not accept the untrusted X-Forwarded-Proto header by itself.
+    Require Origin and the forwarded Host to match the browser-visible Host.
+    """
     peer = request.client.host if request.client else ""
-    if scheme != "https" and peer not in ("127.0.0.1", "::1"):
-        raise HTTPException(403, "Operações de bancos exigem HTTPS ou túnel SSH por localhost")
+    if not _trusted_proxy(peer):
+        return False
+    if request.headers.get("x-forwarded-proto", "").strip().lower() != "https":
+        return False
+    origin = urlparse(request.headers.get("origin", ""))
+    host = request.headers.get("host", "")
+    if not host or origin.scheme != "https" or origin.netloc != host:
+        return False
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_host and forwarded_host != host:
+        return False
+    return True
+
+
+def require_secure_database_admin(request: Request):
+    # Accept HTTPS at the app, or HTTPS terminated at explicitly trusted
+    # Traefik, or a local SSH tunnel. Never use arbitrary forwarded headers.
+    peer = request.client.host if request.client else ""
+    if peer in ("127.0.0.1", "::1") and request.headers.get("host", "").split(":")[0] in ("localhost", "127.0.0.1", "[::1]"):
+        return
+    if request.url.scheme == "https" and request.headers.get("origin", "").startswith("https://"):
+        return
+    if _secure_proxy_origin(request):
+        return
+    raise HTTPException(403, "Operações de bancos exigem HTTPS através de proxy confiável ou túnel SSH local")
 
 
 # --- Managed PostgreSQL/MySQL (single host) ---
