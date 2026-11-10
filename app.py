@@ -495,6 +495,13 @@ def project_status(request: Request):
         proc = by_name.get(f"lm-{name}")
         conf = config_for(entry)
         status = (proc or {}).get("pm2_env", {}).get("status", "offline")
+        if conf["process_mode"] == "ecosystem" and conf["runtime"] != "docker":
+            project_path = (ROOT / name).resolve()
+            belonging = [p for p in processes
+                         if Path(p.get("pm2_env", {}).get("pm_cwd", "/")).resolve().is_relative_to(project_path)]
+            if belonging:
+                status = "online" if all(p.get("pm2_env", {}).get("status") == "online" for p in belonging) else "degraded"
+                proc = belonging[0]
         if conf["runtime"] == "docker":
             status = "docker"
         result.append({
