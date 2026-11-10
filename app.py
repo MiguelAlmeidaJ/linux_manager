@@ -643,6 +643,15 @@ def github_ssh_test(payload: SSHRepoTest, request: Request):
     return ghssh.test_repository(payload.repo)
 
 
+def require_secure_database_admin(request: Request):
+    # Passwords must not traverse plain HTTP on the network.
+    # The SSH tunnel uses localhost and reaches Uvicorn from loopback.
+    scheme = request.url.scheme
+    peer = request.client.host if request.client else ""
+    if scheme != "https" and peer not in ("127.0.0.1", "::1"):
+        raise HTTPException(403, "Operações de bancos exigem HTTPS ou túnel SSH por localhost")
+
+
 # --- Managed PostgreSQL/MySQL (single host) ---
 @app.get("/api/databases/services")
 def managed_services(request: Request):
@@ -652,6 +661,7 @@ def managed_services(request: Request):
 @app.post("/api/databases/services/{engine}/start")
 def managed_service_start(engine: str, request: Request):
     assert_auth(request)
+    require_secure_database_admin(request)
     return dbm.start(engine)
 
 @app.get("/api/databases")
@@ -662,14 +672,17 @@ def managed_databases(request: Request):
 @app.post("/api/databases")
 def managed_database_create(payload: dbm.NewDatabase, request: Request):
     assert_auth(request)
+    require_secure_database_admin(request)
     return dbm.create(payload, records())
 
 @app.post("/api/databases/{engine}/{name}/users")
 def managed_db_user_create(engine: str, name: str, payload: dbm.NewUser, request: Request):
     assert_auth(request)
+    require_secure_database_admin(request)
     return dbm.add_user(engine, name, payload)
 
 @app.post("/api/databases/{engine}/{name}/bind")
 def managed_db_bind(engine: str, name: str, payload: dbm.BindUser, request: Request):
     assert_auth(request)
+    require_secure_database_admin(request)
     return dbm.bind(engine, name, payload, records())
