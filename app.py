@@ -552,6 +552,12 @@ def project_env_keys(name: str, request: Request):
     get_project(name)
     return {"keys": dj.env_keys(ROOT, name)}
 
+@app.get("/api/projects/{name}/env/example")
+def project_env_example(name: str, request: Request):
+    assert_auth(request)
+    _, path = get_project(name)
+    return dj.example_env_keys(path, dj.read_env(ROOT, name))
+
 @app.put("/api/projects/{name}/env")
 def project_env_update(name: str, payload: dj.EnvChange, request: Request):
     assert_auth(request)
