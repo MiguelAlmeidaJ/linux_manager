@@ -85,6 +85,61 @@ def example_env_keys(project_path: Path, stored: dict[str, str]) -> dict:
             "missing": sum(not row["configured"] for row in names)}
 
 
+ENV_HEADER = "# Managed by Linux Manager. Do not edit directly; use the panel."
+ENV_WRITE_LOCK = threading.RLock()
+
+
+def _dotenv_quote(value: str) -> str:
+    """Encode one value for Node/Python dotenv parsers without shell expansion."""
+    if any(char in value for char in ("\x00", "\n", "\r")):
+        raise HTTPException(400, "Variáveis com quebras de linha não podem ser sincronizadas no .env")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def sync_project_dotenv(projects_root: Path, name: str, values: dict[str, str] | None = None) -> dict:
+    """Materialize private managed .env in project root; never modify an unmanaged .env."""
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,62}", name):
+        raise HTTPException(400, "Nome de projeto inválido")
+    project = projects_root / name
+    if not project.is_dir() or project.is_symlink():
+        raise HTTPException(404, "Diretório do projeto não encontrado")
+    target = project / ".env"
+    with ENV_WRITE_LOCK:
+        if target.is_symlink():
+            raise HTTPException(409, "O arquivo .env é um link simbólico; sincronização recusada")
+        if target.exists():
+            if not target.is_file():
+                raise HTTPException(409, ".env existente não é arquivo regular")
+            try:
+                with target.open("r", encoding="utf-8") as file:
+                    first_line = file.readline().rstrip("\r\n")
+                if first_line != ENV_HEADER:
+                    raise HTTPException(409, ".env já existe e não é gerenciado pelo Linux Manager; não será sobrescrito")
+            except UnicodeError:
+                raise HTTPException(409, ".env existente possui codificação incompatível")
+        stored = read_env(projects_root, name) if values is None else values
+        if any(not ENV_KEY.fullmatch(k) or k in RESERVED for k in stored):
+            raise HTTPException(400, "Nome de variável inválido no cofre")
+        content = ENV_HEADER + "\n" + "".join(
+            key + "=" + _dotenv_quote(value) + "\n"
+            for key, value in sorted(stored.items())
+        )
+        temp = project / ".env.linux-manager.tmp"
+        if temp.is_symlink():
+            raise HTTPException(409, "Arquivo temporário de .env inseguro")
+        try:
+            fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as file:
+                file.write(content)
+                file.flush()
+                os.fsync(file.fileno())
+            os.chmod(temp, 0o600)
+            os.replace(temp, target)
+        finally:
+            temp.unlink(missing_ok=True)
+        return {"synced": True, "file": ".env", "keys": sorted(stored)}
+
+
 def save_env(projects_root: Path, name: str, change: EnvChange):
     old = read_env(projects_root, name)
     for k, v in change.values.items():
@@ -98,6 +153,8 @@ def save_env(projects_root: Path, name: str, change: EnvChange):
         old.pop(k, None)
     if len(old) > 100:
         raise HTTPException(400, "Limite de 100 variáveis por projeto")
+    # Materialize before committing the vault: no partial success on invalid .env.
+    sync_project_dotenv(projects_root, name, old)
     f = env_path(projects_root, name)
     tmp = f.with_suffix(".tmp")
     try:
@@ -197,6 +254,8 @@ def start_job(name, root, entry, action, finish=None):
             job["status"] = "running"
         try:
             secrets = read_env(root, name)
+            if action in ("deploy", "update_deploy"):
+                sync_project_dotenv(root, name, secrets)
             env = environment(root, name)
             env["PORT"] = str(entry.get("port", 3000))
             if action in ("update", "update_deploy"):
