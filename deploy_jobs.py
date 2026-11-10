@@ -179,8 +179,10 @@ def start_job(name, root, entry, action, finish=None):
                 else:
                     for key in ("install_command", "prepare_command", "build_command"):
                         value = entry.get(key, "").strip()
-                        if value:
-                            run_process(safe_args(value), project_path, env, append, 600)
+                        for line in value.splitlines():
+                            line = line.strip()
+                            if line and not line.startswith("#"):
+                                run_process(safe_args(line), project_path, env, append, 600)
                     if entry.get("process_mode", "command") == "ecosystem":
                         ecosystem = project_path / "ecosystem.config.cjs"
                         if not ecosystem.is_file():
