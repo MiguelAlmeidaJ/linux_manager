@@ -1,7 +1,10 @@
+import os
 from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
+os.environ.setdefault("ADMIN_PASSWORD", "test-secret")
+os.environ.setdefault("SESSION_SECRET", "test-only-secret-with-more-than-32-chars")
 import app
 
 
