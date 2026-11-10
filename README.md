@@ -217,3 +217,50 @@ sudo systemctl restart linux-manager
 Depois atualize o navegador com Ctrl+Shift+R. Em projetos privados, a chave precisa primeiro ser autorizada no GitHub; gerar a chave sozinho **não** concede acesso. Portas SSH de saída (22/TCP) precisam estar liberadas, salvo uso de outra configuração externa de SSH.
 
 **Segurança:** por estar atualmente exposto em HTTP, o painel não deve ser acessado na internet aberta. Uma sessão interceptada permite executar deploys e administrar chaves públicas. Para utilização permanente, adote HTTPS, restrinja acesso à rede/VPN e mantenha a chave privada protegida.
+
+## v0.6 — Terminal por aplicação e deploy de monorepos
+
+Cada projeto cadastrado possui um botão **Terminal** que abre uma shell Linux como usuário `linuxmanager`, **já no diretório daquele projeto** (ex.: `/srv/linux-manager/projects/aicorta`). O terminal não isola comandos por projeto; ele tem as permissões do usuário `linuxmanager`. Ao clicar em Desconectar, a sessão é encerrada.
+
+**Segurança:** o terminal é desabilitado por padrão e exige `TERMINAL_ENABLED=true`. Para impedir exposição de shell e credenciais em HTTP, WebSockets de terminal são permitidos **somente por HTTPS ou pelo endereço de loopback localhost/127.0.0.1** (idealmente com túnel SSH). Se usar uma conexão HTTP em IP de LAN, o terminal permanecerá bloqueado mesmo com a flag ligada.
+
+Exemplo de acesso seguro para testes por túnel (rodar no seu computador):
+
+```bash
+ssh -L 8765:127.0.0.1:8765 USUARIO_SSH@IP_DO_SERVIDOR
+```
+
+Em outra janela do navegador, abra `http://localhost:8765` e faça login no painel. Configure `TERMINAL_ENABLED=true` no arquivo `/opt/linux-manager/.env` e reinicie `sudo systemctl restart linux-manager`.
+
+Na configuração de cada projeto, você agora pode selecionar **PM2 ecosystem.config.cjs** como modo de inicialização, ideal para repositórios que criam múltiplos processos (API + Web). O deploy executa os campos de Instalação, Preparação e Build em sequência, e depois executa `pm2 startOrReload ecosystem.config.cjs --env production --update-env`. A preparação aceita **um comando por linha** (sem shell), incluindo `docker compose up -d postgres` para projetos conhecidos.
+
+### Exemplo: AICorta
+
+Repositório: `git@github.com:MiguelAlmeidaJ/aicorta.git` ou URL HTTPS; branch `main`.
+
+- Runtime: Node.js
+- Modo: PM2 ecosystem.config.cjs
+- Instalação: `pnpm install --frozen-lockfile`
+- Preparação, cada comando em linha separada:
+  - `docker compose up -d postgres`
+  - `pnpm db:generate`
+  - `pnpm --filter @aicorta/api exec prisma migrate deploy`
+- Build: `pnpm build`
+- Comando de inicialização: não utilizado no modo ecosystem
+
+O projeto AICorta usa pnpm 10.18.0 e Node.js >=22. Em distribuições sem pnpm global, instale-o como administrador do servidor antes de executar o deploy. As variáveis necessárias no painel são `DATABASE_URL`, `JWT_SECRET`, `WEB_ORIGIN`, `NEXT_PUBLIC_API_URL`, `API_PORT`, `API_HOST`, `WEB_PORT` e `WEB_HOST`. Para acessar o frontend por IP em testes, configure as portas e endereços correspondentes antes do build. As variáveis `NEXT_PUBLIC_*` são incorporadas durante `pnpm build`.
+
+**Importante sobre o Docker Compose do AICorta:** a configuração existente publica PostgreSQL em `0.0.0.0:5432` e usa senha de desenvolvimento. **Não exponha esse Compose diretamente à internet**. Altere a configuração para bind apenas em `127.0.0.1`, use senha forte e atualize a URL do banco antes de uso público. Não execute esse banco no servidor que já tenha PostgreSQL utilizando a porta 5432 sem ajustar o mapeamento.
+
+### Atualização
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python3 -m py_compile app.py deploy_jobs.py github_ssh.py
+exit
+sudo systemctl restart linux-manager
+```
+
+Recarregue o browser com Ctrl+Shift+R. Os processos PM2 são iniciados pelo mesmo usuário `linuxmanager`. O modo ecosystem utiliza nomes definidos pelo próprio repositório, e o status agrega os processos associados ao diretório do projeto.
