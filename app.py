@@ -224,8 +224,7 @@ def update_project(name: str, request: Request):
 @app.get("/api/pm2")
 def pm2_list(request: Request):
     assert_auth(request)
-    output = command(["pm2", "jlist"], timeout=20)
-    return json.loads(output)
+    return pm2_process_snapshot()
 
 @app.post("/api/projects/{name}/pm2/start")
 def pm2_start(name: str, payload: Start, request: Request):
@@ -459,7 +458,7 @@ def configured_process(name: str, action: str, request: Request):
         if action == "stop":
             return {"output": command(["pm2", "stop", "ecosystem.config.cjs"], cwd=path, timeout=30)}
         if action == "logs":
-            processes = json.loads(command(["pm2", "jlist"], timeout=20))
+            processes = pm2_process_snapshot()
             owned = [p.get("name") for p in processes
                      if p.get("name") and Path(p.get("pm2_env", {}).get("pm_cwd", "/")).resolve().is_relative_to(path)]
             if not owned:
@@ -483,14 +482,40 @@ def configured_process(name: str, action: str, request: Request):
         return pm2_logs(name, request)
     raise HTTPException(400, "Ação desconhecida")
 
+def pm2_process_snapshot():
+    """Read complete PM2 JSON without command()'s 12 KB log truncation.
+
+    Only return safe process metadata. PM2's raw jlist includes environment
+    variables (and may contain secrets), so never return it to the browser.
+    """
+    try:
+        result = subprocess.run(
+            ["pm2", "jlist"], env=subprocess_env(), stdin=subprocess.DEVNULL,
+            capture_output=True, text=True, timeout=20,
+        )
+        if result.returncode != 0 or len(result.stdout) > 4_000_000:
+            return []
+        items = json.loads(result.stdout)
+        if not isinstance(items, list):
+            return []
+        return [
+            {"name": p.get("name"), "pid": p.get("pid"),
+             "pm2_env": {"pm_cwd": p.get("pm2_env", {}).get("pm_cwd"),
+                         "status": p.get("pm2_env", {}).get("status", "offline"),
+                         "restart_time": p.get("pm2_env", {}).get("restart_time", 0)},
+             "monit": {"cpu": p.get("monit", {}).get("cpu", 0),
+                       "memory": p.get("monit", {}).get("memory", 0)}}
+            for p in items if isinstance(p, dict)
+        ]
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError):
+        return []
+
+
 @app.get("/api/projects/status")
 def project_status(request: Request):
     assert_auth(request)
     data = records()
-    try:
-        processes = json.loads(command(["pm2", "jlist"], timeout=15))
-    except (HTTPException, ValueError):
-        processes = []
+    processes = pm2_process_snapshot()
     by_name = {p.get("name"): p for p in processes}
     result = []
     for name, entry in data.items():
