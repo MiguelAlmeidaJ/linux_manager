@@ -264,3 +264,37 @@ sudo systemctl restart linux-manager
 ```
 
 Recarregue o browser com Ctrl+Shift+R. Os processos PM2 são iniciados pelo mesmo usuário `linuxmanager`. O modo ecosystem utiliza nomes definidos pelo próprio repositório, e o status agrega os processos associados ao diretório do projeto.
+
+## v0.7 — Bancos de Dados gerenciados
+
+Nova aba **Bancos de Dados** para gerenciar um PostgreSQL 17 e um MySQL 8.4 centralizados em Docker Compose, criar bancos e usuários, conceder permissões somente leitura ou leitura/escrita e vincular uma DATABASE_URL à aplicação PM2.
+
+**Isolamento de portas:** o PostgreSQL é publicado apenas em 127.0.0.1:5432 e o MySQL apenas em 127.0.0.1:3306. Cada um é um serviço compartilhado, com vários bancos isolados logicamente. Se uma porta já estiver ocupada por um serviço não gerenciado, o painel se recusa a iniciar outro banco nessa porta, sem interromper os serviços existentes.
+
+**Segredos:** senhas administrativas são geradas automaticamente no primeiro uso, no arquivo /srv/linux-manager/database-services.env (modo 0600). As credenciais de bancos e usuários ficam em /srv/linux-manager/managed-databases.json (0600). Não copie esses arquivos para repositórios e inclua-os nos backups seguros. As respostas da API não retornam senhas.
+
+**Criação segura:** operações que criam serviços, bancos, usuários ou vínculos exigem HTTPS ou um túnel SSH local, não o IP HTTP da rede. Para testar:
+
+    ssh -L 8765:127.0.0.1:8765 USUARIO_SSH@IP_DO_SERVIDOR
+
+Depois entre no painel em http://localhost:8765. Não habilite 5432 ou 3306 no firewall externo.
+
+**Vinculação:** no formulário de criação ou em um banco já existente, selecione uma aplicação PM2 e o usuário. O painel grava DATABASE_URL no cofre de variáveis da aplicação; faça novo deploy para aplicar. O PostgreSQL utiliza o schema public por padrão. Usuários adicionais do PostgreSQL têm direitos nas tabelas existentes e nas futuras tabelas criadas pelo proprietário no schema public. Direitos de outros schemas devem ser configurados separadamente.
+
+**Atenção a projetos Docker:** a conexão 127.0.0.1 dentro de um container não chega ao banco no host. O vínculo automático de apps Docker foi propositalmente bloqueado nesta primeira etapa. Precisamos implementar rede interna para containers antes de usá-lo nesses apps. Também remova os containers locais de PostgreSQL/MySQL dos projetos quando for migrá-los para os bancos compartilhados.
+
+**Migração:** criar um banco central não importa dados existentes. Faça backup, restaure, valide dados e conexão, atualize as variáveis e só então desative os serviços antigos. Não remova volumes sem restauração testada.
+
+### Atualização do servidor
+
+    sudo -iu linuxmanager
+    cd /opt/linux-manager
+    git pull --ff-only
+    .venv/bin/pip install -r requirements.txt
+    .venv/bin/python -m py_compile app.py deploy_jobs.py database_manager.py
+    exit
+    sudo systemctl restart linux-manager
+
+Recarregue o navegador com Ctrl+Shift+R, abra Bancos de Dados e inicie o serviço desejado.
+
+**Limitações de segurança:** o MVP ainda não inclui backup/restauração automáticos, rotação de senha, TLS de banco, alta disponibilidade, migração automática ou isolamento entre aplicações não confiáveis. Não use bancos de produção sem configurar e testar backups externos. Acesso ao usuário linuxmanager ou ao daemon Docker dá acesso privilegiado aos dados; proteja o host e configure HTTPS para o painel. Não há endpoints de exclusão de bancos nesta fase para reduzir risco de perda de dados.
