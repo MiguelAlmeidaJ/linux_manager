@@ -457,7 +457,15 @@ def configured_process(name: str, action: str, request: Request):
         if action == "stop":
             return {"output": command(["pm2", "stop", "ecosystem.config.cjs"], cwd=path, timeout=30)}
         if action == "logs":
-            return {"output": command(["pm2", "logs", "--lines", "80", "--nostream"], cwd=path, timeout=20)}
+            processes = json.loads(command(["pm2", "jlist"], timeout=20))
+            owned = [p.get("name") for p in processes
+                     if p.get("name") and Path(p.get("pm2_env", {}).get("pm_cwd", "/")).resolve().is_relative_to(path)]
+            if not owned:
+                return {"output": "Nenhum processo deste ecosystem está registrado no PM2"}
+            lines = []
+            for process_name in owned:
+                lines.append(process_name + "\n" + command(["pm2", "logs", process_name, "--lines", "50", "--nostream"], timeout=20))
+            return {"output": "\n\n".join(lines)}
     if config_for(entry)["runtime"] == "docker":
         if action in ("start", "restart"):
             return docker_action(name, "up", request)
