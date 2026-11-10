@@ -211,6 +211,8 @@ def create(payload, projects):
     username = valid(payload.username)
     if payload.project and payload.project not in projects:
         raise HTTPException(404, "Aplicação não encontrada")
+    if payload.project and projects[payload.project].get("runtime") == "docker":
+        raise HTTPException(400, "Vinculação automática ainda não suporta apps Docker. Crie o banco sem vincular e configure a rede primeiro.")
     with LOCK:
         data = catalog()
         if any(x["engine"] == engine and (x["name"] == dbname or
