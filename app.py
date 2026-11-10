@@ -522,19 +522,26 @@ def project_status(request: Request):
         proc = by_name.get(f"lm-{name}")
         conf = config_for(entry)
         status = (proc or {}).get("pm2_env", {}).get("status", "offline")
+        matched = [proc] if proc else []
         if conf["process_mode"] == "ecosystem" and conf["runtime"] != "docker":
             project_path = (ROOT / name).resolve()
-            belonging = [p for p in processes
-                         if Path(p.get("pm2_env", {}).get("pm_cwd", "/")).resolve().is_relative_to(project_path)]
-            if belonging:
-                status = "online" if all(p.get("pm2_env", {}).get("status") == "online" for p in belonging) else "degraded"
-                proc = belonging[0]
+            matched = [
+                p for p in processes
+                if isinstance(p.get("pm2_env", {}).get("pm_cwd"), str)
+                and Path(p["pm2_env"]["pm_cwd"]).resolve().is_relative_to(project_path)
+            ]
+            if matched:
+                online = sum(p.get("pm2_env", {}).get("status") == "online" for p in matched)
+                status = "online" if online == len(matched) else "degraded"
+                proc = matched[0]
         if conf["runtime"] == "docker":
             status = "docker"
         result.append({
             "name": name, "runtime": conf["runtime"], "port": conf["port"],
             "status": status, "pid": (proc or {}).get("pid"),
-            "restarts": (proc or {}).get("pm2_env", {}).get("restart_time", 0),
+            "restarts": sum(p.get("pm2_env", {}).get("restart_time", 0) or 0 for p in matched),
+            "process_count": len(matched),
+            "online_count": sum(p.get("pm2_env", {}).get("status") == "online" for p in matched),
         })
     return result
 
