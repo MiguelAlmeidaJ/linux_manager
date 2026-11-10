@@ -224,8 +224,9 @@ def create(payload, projects):
         try:
             if engine == "postgres":
                 with conn.cursor() as cursor:
-                    cursor.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD %s").format(sql.Identifier(username)), (payload.password,))
+                    cursor.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(sql.Identifier(username), sql.Literal(payload.password)))
                     cursor.execute(sql.SQL("CREATE DATABASE {} OWNER {}").format(sql.Identifier(dbname), sql.Identifier(username)))
+                    cursor.execute(sql.SQL("REVOKE CONNECT ON DATABASE {} FROM PUBLIC").format(sql.Identifier(dbname)))
             else:
                 q = chr(96)
                 with conn.cursor() as cursor:
@@ -259,7 +260,7 @@ def add_user(engine, dbname, payload):
         try:
             if engine == "postgres":
                 with conn.cursor() as cur:
-                    cur.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD %s").format(sql.Identifier(username)), (payload.password,))
+                    cur.execute(sql.SQL("CREATE ROLE {} LOGIN PASSWORD {}").format(sql.Identifier(username), sql.Literal(payload.password)))
                     cur.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(sql.Identifier(dbname), sql.Identifier(username)))
                 conn.close()
                 conn = connection(engine, dbname)
