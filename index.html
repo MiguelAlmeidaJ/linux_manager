@@ -45,6 +45,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 <button data-tab="projects"><span class="ico">◇</span>Aplicações</button>
 <button data-tab="pm2"><span class="ico">◉</span>Processos PM2</button>
 <button data-tab="docker"><span class="ico">▤</span>Containers</button>
+<button data-tab="databases"><span class="ico">◈</span>Bancos de Dados</button>
 <button data-tab="ports"><span class="ico">⇄</span>Portas de rede</button>
 <button data-tab="terminal"><span class="ico">⌘</span>Terminal</button>
 </nav>
@@ -82,6 +83,22 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 </section>
 <section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Gerenciamento dos processos Node.js e Python.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>Reinícios</th><th>Memória</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
 <section id="docker" class="hide"><div class="heading"><div><h1>Containers Docker</h1><p>Containers e serviços Docker deste servidor.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div><div class="panel"><pre id="dockerOutput">Carregando containers...</pre></div></section>
+<section id="databases" class="hide">
+<div class="heading"><div><h1>Bancos de Dados</h1><p>PostgreSQL e MySQL centralizados neste servidor, sem portas públicas.</p></div><button class="ghost" id="refreshDB">↻ Atualizar</button></div>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))" id="dbServices"><div class="panel muted">Verificando serviços...</div></div>
+<div class="panel" style="margin-top:18px">
+<div class="section-top"><h2>Criar banco e usuário proprietário</h2><span class="badge">Credenciais privadas</span></div>
+<form id="dbCreateForm" class="formgrid">
+<label class="field">Tecnologia<select name="engine"><option value="postgres">PostgreSQL</option><option value="mysql">MySQL</option></select></label>
+<label class="field">Nome do banco<input name="name" placeholder="aicorta_db" pattern="[a-z][a-z0-9_]{1,47}" required></label>
+<label class="field">Usuário proprietário<input name="username" placeholder="aicorta_user" pattern="[a-z][a-z0-9_]{1,47}" required></label>
+<label class="field">Senha (mínimo 12 caracteres)<input type="password" name="password" minlength="12" required autocomplete="new-password"></label>
+<label class="field wide">Vincular à aplicação (opcional)<select name="project" id="dbCreateProject"><option value="">Não vincular</option></select></label>
+<div class="wide"><button type="submit">Criar banco</button><p class="help">PostgreSQL usa 127.0.0.1:5432; MySQL usa 127.0.0.1:3306. Vinculação automática é apenas para aplicações no host/PM2.</p></div>
+</form></div>
+<div class="panel" style="margin-top:18px"><div class="section-top"><h2>Bancos gerenciados</h2><span class="badge" id="dbCount">0 bancos</span></div><div id="dbList" class="empty">Nenhum banco cadastrado.</div></div>
+<p class="help" style="margin-top:15px">Os serviços utilizam volumes Docker persistentes. Não remova volumes ou containers manualmente sem backup. Os bancos não são acessíveis externamente por padrão.</p>
+</section>
 <section id="ports" class="hide"><div class="heading"><div><h1>Portas de rede</h1><p>Conexões TCP em escuta no servidor.</p></div><button class="ghost" id="reloadPorts">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Porta</th><th>Endereço</th><th>PID</th></tr></thead><tbody id="portsTable"></tbody></table></div></div></section>
 <section id="terminal" class="hide"><div class="heading"><div><h1>Terminal</h1><p>Acesso à shell do usuário responsável pelos projetos.</p></div></div><div class="panel"><p class="small muted">O terminal deve ser usado apenas em conexão HTTPS confiável ou rede restrita.</p><div class="actions" style="margin-bottom:15px"><button id="connectTerminal">Conectar</button><button id="disconnectTerminal" class="ghost">Desconectar</button></div><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></div></section>
 <div class="panel" style="margin-top:20px"><div class="section-top"><h2>Console de operações</h2><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></div>
@@ -90,7 +107,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 </div>
 <div id="toast" class="toast hide"></div>
 <script>
-const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",ports:"Portas de rede",terminal:"Terminal"};
+const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal"};
 let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[];
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
@@ -104,7 +121,7 @@ async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
 function switchTab(page){active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
-if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
+if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
 async function refresh(){try{const [s,h,st]=await Promise.all([api("/stats"),api("/host"),api("/projects/status")]);latestStatus=st;$("hostname").textContent=s.hostname;const data=[
@@ -195,6 +212,56 @@ function toggleConfig(){cfg.classList.toggle("hide");}
 function toggleEnv(){envPanel.classList.toggle("hide");if(!envPanel.classList.contains("hide"))displayKeys()}
 }
 }catch(e){failure(e)}}
+
+async function loadDatabases(){
+ try{
+  const [services,databases,apps]=await Promise.all([api("/databases/services"),api("/databases"),api("/projects")]);
+  const svc=$("dbServices");svc.replaceChildren();
+  for(const s of services){
+   const card=document.createElement("div");card.className="panel";
+   card.innerHTML='<div class="section-top"><h2>'+esc(s.engine==="postgres"?"PostgreSQL":"MySQL")+'</h2><span class="status '+(s.running?"":"off")+'">'+(s.running?"Em execução":"Parado")+'</span></div><div class="systemrow"><span class="muted">Porta local</span><strong>127.0.0.1:'+s.port+'</strong></div><div class="systemrow"><span class="muted">Imagem compartilhada</span><strong>'+esc(s.engine==="postgres"?"postgres:17-alpine":"mysql:8.4")+'</strong></div>';
+   const button=document.createElement("button");button.className="ghost";button.style.marginTop="17px";button.textContent=s.running?"Serviço funcionando":"Iniciar serviço";
+   button.disabled=s.running;
+   button.onclick=async()=>{button.disabled=true;button.textContent="Iniciando...";try{const v=await api("/databases/services/"+s.engine+"/start","POST");notify("Serviço "+v.engine+" iniciado");await loadDatabases()}catch(e){failure(e);button.disabled=false;button.textContent="Tentar novamente"}};
+   card.append(button);svc.append(card);
+  }
+  const appOptions=apps.filter(a=>a.runtime!=="docker");
+  const select=$("dbCreateProject");const previous=select.value;select.replaceChildren(new Option("Não vincular",""));
+  for(const a of appOptions)select.add(new Option(a.name,a.name));select.value=previous;
+  const root=$("dbList");root.replaceChildren();root.className=databases.length?"":"empty";$("dbCount").textContent=databases.length+" banco(s)";
+  if(!databases.length){root.textContent="Nenhum banco cadastrado.";return}
+  for(const db of databases){
+   const card=document.createElement("div");card.className="proj";
+   const title=document.createElement("div");title.className="proj-head";
+   title.innerHTML='<div><div class="proj-name">◈ '+esc(db.name)+'</div><div class="proj-url">'+esc(db.engine)+" · Proprietário: "+esc(db.owner)+'</div></div><span class="badge">'+db.users.length+' usuário(s)</span>';
+   card.append(title);
+   const users=document.createElement("div");users.className="proj-grid";
+   users.textContent=db.users.map(u=>u.username+" ("+u.permission+")").join(" · ");card.append(users);
+   const actions=document.createElement("div");actions.className="actions";
+   const userButton=document.createElement("button");userButton.className="ghost";userButton.textContent="+ Criar usuário";
+   const bindButton=document.createElement("button");bindButton.className="ghost";bindButton.textContent="Vincular à aplicação";actions.append(userButton,bindButton);card.append(actions);
+   const userArea=document.createElement("div");userArea.className="hide";userArea.style.marginTop="16px";
+   userArea.innerHTML='<form class="formgrid"><label class="field">Novo usuário<input name="username" pattern="[a-z][a-z0-9_]{1,47}" required></label><label class="field">Senha<input name="password" type="password" minlength="12" required autocomplete="new-password"></label><label class="field wide">Permissão<select name="permission"><option value="read_only">Somente leitura</option><option value="read_write">Leitura e escrita</option></select></label><div class="wide"><button>Criar usuário</button></div></form>';
+   userArea.querySelector("form").onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));try{await api("/databases/"+db.engine+"/"+encodeURIComponent(db.name)+"/users","POST",data);notify("Usuário criado");await loadDatabases()}catch(ex){failure(ex)}};
+   userButton.onclick=()=>userArea.classList.toggle("hide");card.append(userArea);
+   const bindArea=document.createElement("div");bindArea.className="hide";bindArea.style.marginTop="16px";
+   bindArea.innerHTML='<form class="formgrid"><label class="field">Usuário<select name="username"></select></label><label class="field">Aplicação<select name="project"></select></label><div class="wide"><button>Configurar DATABASE_URL</button></div></form>';
+   for(const u of db.users)bindArea.querySelector('[name="username"]').add(new Option(u.username,u.username));
+   for(const a of appOptions)bindArea.querySelector('[name="project"]').add(new Option(a.name,a.name));
+   bindArea.querySelector("form").onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(e.target));if(!data.project){notify("Cadastre primeiro uma aplicação PM2");return}try{await api("/databases/"+db.engine+"/"+encodeURIComponent(db.name)+"/bind","POST",data);notify("DATABASE_URL configurada. Faça novo deploy para aplicar.");bindArea.classList.add("hide")}catch(ex){failure(ex)}};
+   bindButton.onclick=()=>bindArea.classList.toggle("hide");card.append(bindArea);root.append(card);
+  }
+ }catch(e){failure(e)}
+}
+$("refreshDB").onclick=loadDatabases;
+$("dbCreateForm").onsubmit=async e=>{
+ e.preventDefault();const button=e.target.querySelector('button[type="submit"]');
+ button.disabled=true;button.textContent="Criando...";
+ try{const v=Object.fromEntries(new FormData(e.target));if(!v.project)delete v.project;await api("/databases","POST",v);e.target.reset();notify("Banco criado com sucesso");await loadDatabases()}
+ catch(ex){failure(ex)}
+ finally{button.disabled=false;button.textContent="Criar banco"}
+};
+
 async function loadPM2(){try{const data=await api("/pm2");$("pm2Table").innerHTML=data.map(p=>'<tr><td>'+esc(p.name)+'</td><td><span class="status '+(p.pm2_env?.status==="online"?"":"off")+'">'+esc(p.pm2_env?.status||"—")+'</span></td><td>'+esc(p.pid)+'</td><td>'+esc(p.pm2_env?.restart_time||0)+'</td><td>'+esc(((p.monit?.memory||0)/1048576).toFixed(1))+' MB</td></tr>').join("")||'<tr><td colspan="5">Nenhum processo.</td></tr>'}catch(e){failure(e)}}
 async function loadDocker(){try{$("dockerOutput").textContent=(await api("/docker")).output||"Nenhum container"}catch(e){$("dockerOutput").textContent=e.message}}
 async function loadPorts(){try{const data=await api("/ports");$("portsTable").innerHTML=data.map(p=>'<tr><td><strong>'+esc(p.port)+'</strong></td><td>'+esc(p.address)+'</td><td>'+esc(p.pid??"—")+'</td></tr>').join("")||'<tr><td colspan="3">Nenhuma porta identificada.</td></tr>'}catch(e){failure(e)}}
