@@ -322,3 +322,21 @@ Na aba Aplicações, abra Variáveis .env e clique em **Carregar variáveis do .
 O procedimento não sobrescreve variáveis existentes, não importa valores de exemplo, não cria um `.env` físico e não envia segredos do cofre para o navegador. As variáveis cadastradas permanecem armazenadas no arquivo privado do Linux Manager, sendo injetadas no processo durante o deploy. Para aplicar novas variáveis é necessário executar o deploy novamente.
 
 Atualização: `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit`, `sudo systemctl restart linux-manager`.
+
+## Correção do .env físico para scripts, Prisma e manutenção
+
+O Linux Manager continua mantendo o cofre privado fora do repositório, mas agora **sincroniza automaticamente** um arquivo `.env` real em `/srv/linux-manager/projects/NOME/.env`, sempre que você salva uma variável pelo painel e antes de um deploy. O arquivo recebe permissão `0600`, é criado atomicamente e contém apenas as variáveis cadastradas para o projeto (sem importar valores do `.env.example`).
+
+Para aplicações já configuradas, abra **Aplicações → Variáveis .env → Criar / sincronizar .env do projeto**. O endpoint autenticado `POST /api/projects/{name}/env/sync` requer HTTPS/Traefik autorizado ou túnel SSH, assim como o salvamento de variáveis.
+
+Por segurança, **não sobrescreve arquivos .env preexistentes que não tenham sido criados pelo Linux Manager** e recusa symlinks. Caso o usuário já tenha um `.env` manual, faça backup e migração cuidadosa, sem apagar as configurações existentes. O arquivo deve estar ignorado pelo Git (como no repositório AICorta) e nunca ser enviado ao controle de versão.
+
+Para criar a conta SYSTEM do AICorta depois de sincronizar:
+
+```bash
+sudo -iu linuxmanager
+cd /srv/linux-manager/projects/AiCorta
+pnpm --filter @aicorta/api system:create
+```
+
+O script requer senha SYSTEM de 16+ caracteres e URL do banco válida. A geração do arquivo físico não reinicia os processos em execução; para aplicar variáveis à API e ao Next.js, execute novo deploy, especialmente para valores NEXT_PUBLIC_* embutidos no build.
