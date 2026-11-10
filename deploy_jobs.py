@@ -15,7 +15,7 @@ import github_ssh as ghssh
 
 ENV_KEY = re.compile(r"^[A-Za-z_][A-Za-z_0-9]*$")
 RESERVED = {"ADMIN_PASSWORD", "SESSION_SECRET", "PM2_HOME", "HOME", "PATH", "PORT"}
-ALLOWED_TOOLS = {"npm", "pnpm", "yarn", "corepack", "node", "python", "python3", "pip", "pip3", "uv", "uvicorn", "gunicorn", "poetry"}
+ALLOWED_TOOLS = {"docker", "npm", "pnpm", "yarn", "corepack", "node", "python", "python3", "pip", "pip3", "uv", "uvicorn", "gunicorn", "poetry"}
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 LOG_LIMIT = 120_000
@@ -96,6 +96,10 @@ def safe_args(command):
         raise RuntimeError("Comando não permitido")
     if any("\x00" in a or "\n" in a or "\r" in a for a in args):
         raise RuntimeError("Argumentos inválidos")
+    if args[0] == "docker" and args[1:3] != ["compose", "up"]:
+        raise RuntimeError("Somente docker compose up é permitido nas etapas de preparo")
+    if args[0] == "docker" and args[1:] not in (["compose", "up", "-d", "postgres"], ["compose", "up", "-d"]):
+        raise RuntimeError("Comando Docker de preparo não permitido")
     if args[0] in ("python", "python3") and len(args) >= 2 and args[1] == "-c":
         raise RuntimeError("Python -c não permitido")
     return args
@@ -173,10 +177,22 @@ def start_job(name, root, entry, action, finish=None):
                     run_process(["docker", "compose", "-p", "lm-" + name, "up", "-d", "--build"],
                                 project_path, env, append, 600)
                 else:
-                    for key in ("install_command", "build_command"):
+                    for key in ("install_command", "prepare_command", "build_command"):
                         value = entry.get(key, "").strip()
                         if value:
                             run_process(safe_args(value), project_path, env, append, 600)
+                    if entry.get("process_mode", "command") == "ecosystem":
+                        ecosystem = project_path / "ecosystem.config.cjs"
+                        if not ecosystem.is_file():
+                            raise RuntimeError("ecosystem.config.cjs não encontrado na raiz do repositório")
+                        run_process(["pm2", "startOrReload", "ecosystem.config.cjs",
+                                     "--env", "production", "--update-env"],
+                                    project_path, env, append, 45)
+                        run_process(["pm2", "save"], project_path, env, append, 20)
+                        append("\nProcessos do ecosystem iniciados.\n")
+                        with JOBS_LOCK:
+                            job["status"] = "success"
+                        return
                     starter = entry.get("start_command", "").strip()
                     if not starter:
                         raise RuntimeError("Configure o comando de inicialização antes do deploy")
