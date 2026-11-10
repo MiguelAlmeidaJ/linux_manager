@@ -298,3 +298,19 @@ Depois entre no painel em http://localhost:8765. Não habilite 5432 ou 3306 no f
 Recarregue o navegador com Ctrl+Shift+R, abra Bancos de Dados e inicie o serviço desejado.
 
 **Limitações de segurança:** o MVP ainda não inclui backup/restauração automáticos, rotação de senha, TLS de banco, alta disponibilidade, migração automática ou isolamento entre aplicações não confiáveis. Não use bancos de produção sem configurar e testar backups externos. Acesso ao usuário linuxmanager ou ao daemon Docker dá acesso privilegiado aos dados; proteja o host e configure HTTPS para o painel. Não há endpoints de exclusão de bancos nesta fase para reduzir risco de perda de dados.
+
+
+## v0.7.1 — HTTPS pelo Traefik
+
+Quando o Traefik termina o TLS, o navegador usa HTTPS, mas o Uvicorn pode receber HTTP internamente. Para operações sensíveis de bancos, o painel agora só aceita o cabeçalho X-Forwarded-Proto=https quando o endereço de origem da conexão TCP é explicitamente confiável.
+
+**Configuração no servidor**:
+
+1. Identifique o **IP de origem do proxy Traefik como visto pelo Linux Manager**. Após acessar o painel pelo domínio, rode `sudo journalctl -u linux-manager -n 40 --no-pager` e confira o endereço mostrado nas requisições. Não confunda com o IP público do navegador.
+2. Edite `/opt/linux-manager/.env`: defina `TRUSTED_PROXY_IPS=IP_DO_TRAEFIK/32` (IPv4) ou `.../128` (IPv6), usando IP real e estável da origem do Traefik, e `COOKIE_SECURE=true`.
+3. Garanta que o Traefik envie e normalize `X-Forwarded-Proto: https`, preserve o cabeçalho Host original e encaminhe o Origin original; configure o domínio HTTPS e o entrypoint websecure.
+4. Reinicie o serviço com `sudo systemctl restart linux-manager`. Entre novamente pelo endereço HTTPS e teste a criação do serviço.
+
+**Não configure** `TRUSTED_PROXY_IPS=0.0.0.0/0`. Não permita acesso geral à porta HTTP interna 8765: restrinja-a ao Traefik e, se necessário, ao loopback para acesso via SSH. Em versões futuras, prefira Unix socket ou uma rede interna exclusiva do proxy.
+
+O login agora deve utilizar cookie Secure no domínio HTTPS. Caso o backend ainda retorne 403, confirme primeiro o IP que ele realmente recebe, os cabeçalhos encaminhados e se `TRUSTED_PROXY_IPS` foi carregado pelo serviço systemd. Não desabilite a verificação de HTTPS.
