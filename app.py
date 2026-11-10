@@ -363,7 +363,7 @@ class AppConfig(BaseModel):
     install_command: str = Field(default="", max_length=400)
     build_command: str = Field(default="", max_length=400)
     start_command: str = Field(default="", max_length=400)
-    prepare_command: str = Field(default="", max_length=400)
+    prepare_command: str = Field(default="", max_length=2000)
     process_mode: Literal["command", "ecosystem"] = "command"
 
 def config_for(entry):
@@ -449,6 +449,15 @@ def start_configured(name, entry, path):
 def configured_process(name: str, action: str, request: Request):
     assert_auth(request)
     entry, path = get_project(name)
+    if config_for(entry)["process_mode"] == "ecosystem" and config_for(entry)["runtime"] != "docker":
+        if not (path / "ecosystem.config.cjs").is_file():
+            raise HTTPException(400, "ecosystem.config.cjs não encontrado")
+        if action in ("start", "restart"):
+            return {"output": command(["pm2", "startOrReload", "ecosystem.config.cjs", "--env", "production", "--update-env"], cwd=path, timeout=45)}
+        if action == "stop":
+            return {"output": command(["pm2", "stop", "ecosystem.config.cjs"], cwd=path, timeout=30)}
+        if action == "logs":
+            return {"output": command(["pm2", "logs", "--lines", "80", "--nostream"], cwd=path, timeout=20)}
     if config_for(entry)["runtime"] == "docker":
         if action in ("start", "restart"):
             return docker_action(name, "up", request)
