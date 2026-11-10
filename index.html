@@ -145,7 +145,7 @@ async function watchJob(base){
  }catch(e){failure(e)}
  finally{jobWatches.delete(base)}
 }
-const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,install_command:p.install_command??"",build_command:p.build_command??"",start_command:p.start_command??""});
+const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,install_command:p.install_command??"",prepare_command:p.prepare_command??"",build_command:p.build_command??"",start_command:p.start_command??"",process_mode:p.process_mode||"command"});
 async function loadProjects(){try{const [projects,status]=await Promise.all([api("/projects"),api("/projects/status")]);latestProjects=projects;latestStatus=status;const el=$("projectList");el.replaceChildren();
 if(!projects.length){el.className="empty";el.innerHTML='<span class="glyph">◇</span><strong>Nenhuma aplicação ainda</strong>Conecte seu primeiro repositório Git para começar.';return}el.className="";
 for(const p of projects){
@@ -154,11 +154,11 @@ card.innerHTML='<div class="proj-head"><div><div class="proj-name">◇ '+esc(p.n
 const controls=document.createElement("div");controls.className="proj-tools";
 function btn(title,cb,primary=false){const b=document.createElement("button");b.textContent=title;b.className=primary?"":"ghost";b.onclick=cb;controls.append(b)}
 const path="/projects/"+encodeURIComponent(p.name);
-btn("Configurar",()=>toggleConfig());btn("Deploy",()=>operation(path+"/deploy"),true);
+btn("Configurar",()=>toggleConfig());btn("Terminal",()=>toggleProjectTerminal(),true);btn("Deploy",()=>operation(path+"/deploy"));
 btn("Git pull",()=>operation(path+"/pull"));btn("Atualizar + deploy",()=>operation(path+"/update-deploy"));btn("Variáveis .env",()=>toggleEnv());btn("Log de deploy",()=>watchJob(path));btn("Iniciar",()=>operation(path+"/process/start"));btn("Parar",()=>operation(path+"/process/stop"));btn("Reiniciar",()=>operation(path+"/process/restart"));btn("Logs",()=>operation(path+"/process/logs"));
 card.append(controls);
 const cfg=document.createElement("div");cfg.className="hide";cfg.style.marginTop="20px";
-cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="npm install"></label><label class="field wide">Comando de build<input name="build_command" placeholder="npm run build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: o deploy executa instalação e build, depois inicia pelo PM2. Docker: utiliza o arquivo Compose do repositório.</p></div></form>';
+cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field">Modo de inicialização<select name="process_mode"><option value="command">Comando único / PM2</option><option value="ecosystem">PM2 ecosystem.config.cjs</option></select></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="pnpm install"></label><label class="field wide">Preparação (migração / banco)<input name="prepare_command" placeholder="pnpm --filter @aicorta/api exec prisma migrate deploy"></label><label class="field wide">Comando de build<input name="build_command" placeholder="pnpm build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: instalação → preparação → build → PM2. Escolha ecosystem quando houver múltiplos processos no arquivo ecosystem.config.cjs. Docker usa Compose.</p></div></form>';
 const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});
 form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);await operation(path+"/config","PUT",o);cfg.classList.add("hide")};
 card.append(cfg);
@@ -172,7 +172,25 @@ card.append(envPanel);
 const autoPanel=document.createElement("div");autoPanel.style.marginTop="14px";autoPanel.innerHTML='<label class="small muted" style="display:flex;gap:9px;align-items:center"><input type="checkbox" style="width:auto" data-autogit> Atualização automática pelo Git a cada 3 minutos (faz pull e deploy quando houver alterações)</label>';
 const autoCheckbox=autoPanel.querySelector("[data-autogit]");autoCheckbox.checked=!!p.auto_deploy;
 autoCheckbox.onchange=async()=>{try{await api(path+"/auto-deploy","PUT",{enabled:autoCheckbox.checked});notify(autoCheckbox.checked?"Auto deploy ativado":"Auto deploy desativado")}catch(e){autoCheckbox.checked=!autoCheckbox.checked;failure(e)}};
-card.append(autoPanel);el.append(card);
+card.append(autoPanel);
+const termPanel=document.createElement("div");termPanel.className="hide";termPanel.style.marginTop="16px";
+termPanel.innerHTML='<div class="divider"></div><div class="section-top"><h3>Terminal · '+esc(p.name)+'</h3><button type="button" class="ghost" data-close>Desconectar</button></div><p class="help">Terminal na pasta /srv/linux-manager/projects/'+esc(p.name)+'. Requer TERMINAL_ENABLED=true e HTTPS ou túnel SSH localhost.</p><pre class="project-terminal" style="height:270px;max-height:270px;overflow:auto">Desconectado.</pre><input class="project-terminal-input" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false">';
+let projectSocket=null;
+const termOut=termPanel.querySelector("pre"),termIn=termPanel.querySelector("input");
+function closeProjectTerminal(){if(projectSocket){projectSocket.close();projectSocket=null}}
+termPanel.querySelector("[data-close]").onclick=()=>{closeProjectTerminal();termPanel.classList.add("hide")};
+termIn.onkeydown=e=>{if(e.key==="Enter"&&projectSocket?.readyState===WebSocket.OPEN){projectSocket.send(termIn.value+"\\n");termIn.value=""}};
+function toggleProjectTerminal(){
+ if(!termPanel.classList.contains("hide")){closeProjectTerminal();termPanel.classList.add("hide");return}
+ termPanel.classList.remove("hide");termOut.textContent="Conectando...";
+ if(!terminalEnabled){termOut.textContent="Terminal desativado. Configure TERMINAL_ENABLED=true no Linux Manager.";return}
+ projectSocket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/projects/"+encodeURIComponent(p.name)+"/terminal");
+ projectSocket.onopen=()=>{termOut.textContent="Conectado à aplicação "+p.name+"\\n";termIn.focus()};
+ projectSocket.onmessage=e=>{termOut.textContent+=e.data;termOut.scrollTop=termOut.scrollHeight};
+ projectSocket.onclose=()=>{termOut.textContent+="\\n[Conexão encerrada]";projectSocket=null};
+ projectSocket.onerror=()=>notify("Não foi possível conectar o terminal da aplicação");
+}
+card.append(termPanel);el.append(card);
 function toggleConfig(){cfg.classList.toggle("hide");}
 function toggleEnv(){envPanel.classList.toggle("hide");if(!envPanel.classList.contains("hide"))displayKeys()}
 }
