@@ -1,0 +1,38 @@
+# Managed services only. Host bindings deliberately loopback-only.
+# Project containers must use a gateway mapping rather than localhost.
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: linuxmanager_admin
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD:?missing-postgres-password}
+      POSTGRES_DB: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U linuxmanager_admin -d postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?missing-mysql-password}
+      MYSQL_DATABASE: linuxmanager_meta
+    command: ["--bind-address=0.0.0.0"]
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  postgres_data:
+  mysql_data:
