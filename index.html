@@ -179,15 +179,15 @@ let projectSocket=null;
 const termOut=termPanel.querySelector("pre"),termIn=termPanel.querySelector("input");
 function closeProjectTerminal(){if(projectSocket){projectSocket.close();projectSocket=null}}
 termPanel.querySelector("[data-close]").onclick=()=>{closeProjectTerminal();termPanel.classList.add("hide")};
-termIn.onkeydown=e=>{if(e.key==="Enter"&&projectSocket?.readyState===WebSocket.OPEN){projectSocket.send(termIn.value+"\\n");termIn.value=""}};
+termIn.onkeydown=e=>{if(e.key==="Enter"&&projectSocket?.readyState===WebSocket.OPEN){projectSocket.send(termIn.value+"\n");termIn.value=""}};
 function toggleProjectTerminal(){
  if(!termPanel.classList.contains("hide")){closeProjectTerminal();termPanel.classList.add("hide");return}
  termPanel.classList.remove("hide");termOut.textContent="Conectando...";
  if(!terminalEnabled){termOut.textContent="Terminal desativado. Configure TERMINAL_ENABLED=true no Linux Manager.";return}
  projectSocket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/projects/"+encodeURIComponent(p.name)+"/terminal");
- projectSocket.onopen=()=>{termOut.textContent="Conectado à aplicação "+p.name+"\\n";termIn.focus()};
+ projectSocket.onopen=()=>{termOut.textContent="Conectado à aplicação "+p.name+"\n";termIn.focus()};
  projectSocket.onmessage=e=>{termOut.textContent+=e.data;termOut.scrollTop=termOut.scrollHeight};
- projectSocket.onclose=()=>{termOut.textContent+="\\n[Conexão encerrada]";projectSocket=null};
+ projectSocket.onclose=()=>{termOut.textContent+="\n[Conexão encerrada]";projectSocket=null};
  projectSocket.onerror=()=>notify("Não foi possível conectar o terminal da aplicação");
 }
 card.append(termPanel);el.append(card);
