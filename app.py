@@ -590,9 +590,18 @@ def project_env_example(name: str, request: Request):
     _, path = get_project(name)
     return dj.example_env_keys(path, dj.read_env(ROOT, name))
 
+@app.post("/api/projects/{name}/env/sync")
+def project_env_sync(name: str, request: Request):
+    assert_auth(request)
+    get_project(name)
+    require_secure_database_admin(request)
+    return dj.sync_project_dotenv(ROOT, name)
+
+
 @app.put("/api/projects/{name}/env")
 def project_env_update(name: str, payload: dj.EnvChange, request: Request):
     assert_auth(request)
+    require_secure_database_admin(request)
     get_project(name)
     return {"keys": dj.save_env(ROOT, name, payload)}
 
