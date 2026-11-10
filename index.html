@@ -180,10 +180,38 @@ const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(f
 form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);await operation(path+"/config","PUT",o);cfg.classList.add("hide")};
 card.append(cfg);
 const envPanel=document.createElement("div");envPanel.className="hide";envPanel.style.marginTop="18px";
-envPanel.innerHTML='<div class="divider"></div><h3>Variáveis de ambiente</h3><p class="help">Os valores são armazenados fora do repositório e nunca são devolvidos pela API. Salvar novos valores substitui somente as chaves informadas. É necessário fazer novo deploy para aplicar alterações.</p><div class="small muted" data-envkeys>Carregando...</div><form class="formgrid" style="margin-top:15px"><label class="field">Nome da variável<input name="key" placeholder="DATABASE_URL" required></label><label class="field">Valor<input name="value" type="password" placeholder="Novo valor" required autocomplete="off"></label><div class="wide actions"><button>Salvar variável</button><button type="button" class="ghost" data-remove>Excluir chave</button></div></form>';
+envPanel.innerHTML='<div class="divider"></div><h3>Variáveis de ambiente</h3><p class="help">Os valores são armazenados fora do repositório e nunca são devolvidos pela API. Salvar novos valores substitui somente as chaves informadas. É necessário fazer novo deploy para aplicar alterações.</p><div class="small muted" data-envkeys>Carregando...</div><div style="margin:14px 0"><button type="button" class="ghost" data-import-example>Carregar variáveis do .env.example</button><p class="help">Lê os nomes do arquivo do repositório sem copiar senhas ou valores de exemplo. Clique numa variável pendente para configurá-la.</p><div data-example-list class="hide" style="margin-top:12px"></div></div><form class="formgrid" style="margin-top:15px"><label class="field">Nome da variável<input name="key" placeholder="DATABASE_URL" required></label><label class="field">Valor<input name="value" type="password" placeholder="Novo valor" required autocomplete="off"></label><div class="wide actions"><button>Salvar variável</button><button type="button" class="ghost" data-remove>Excluir chave</button></div></form>';
 const envForm=envPanel.querySelector("form");
-envForm.onsubmit=async e=>{e.preventDefault();const key=envForm.elements.key.value.trim();const value=envForm.elements.value.value;try{await api(path+"/env","PUT",{values:{[key]:value},remove:[]});envForm.elements.value.value="";notify("Variável salva");await displayKeys()}catch(e){failure(e)}};
-envPanel.querySelector("[data-remove]").onclick=async()=>{const key=envForm.elements.key.value.trim();if(!key||!confirm("Excluir a variável "+key+"?"))return;try{await api(path+"/env","PUT",{values:{},remove:[key]});notify("Variável excluída");await displayKeys()}catch(e){failure(e)}};
+const exampleList=envPanel.querySelector("[data-example-list]");
+async function showEnvExample(){
+ try{
+  const d=await api(path+"/env/example");
+  exampleList.classList.remove("hide");exampleList.replaceChildren();
+  if(!d.source){exampleList.textContent="Este repositório não possui um arquivo .env.example.";return}
+  const heading=document.createElement("p");heading.className="small muted";
+  heading.textContent=d.variables.length+" variáveis encontradas · "+d.missing+" pendentes";exampleList.append(heading);
+  const wrap=document.createElement("div");wrap.className="actions";
+  wrap.style.gap="8px";
+  if(!d.variables.length){wrap.textContent="Nenhuma variável válida encontrada."}
+  for(const v of d.variables){
+   const button=document.createElement("button");button.type="button";button.className="ghost";
+   button.textContent=(v.configured?"✓ ":"+ ")+v.key;
+   button.title=v.configured?"Já configurada — clique para alterar":"Pendente — clique para configurar";
+   if(v.configured){button.style.opacity=".65"}
+   button.onclick=()=>{
+    envForm.elements.key.value=v.key;
+    envForm.elements.value.value="";
+    envForm.elements.value.focus();
+   };
+   wrap.append(button)
+  }
+  exampleList.append(wrap)
+ }catch(e){failure(e)}
+}
+envPanel.querySelector("[data-import-example]").onclick=showEnvExample;
+
+envForm.onsubmit=async e=>{e.preventDefault();const key=envForm.elements.key.value.trim();const value=envForm.elements.value.value;try{await api(path+"/env","PUT",{values:{[key]:value},remove:[]});envForm.elements.value.value="";notify("Variável salva");await displayKeys();if(!exampleList.classList.contains("hide"))await showEnvExample()}catch(e){failure(e)}};
+envPanel.querySelector("[data-remove]").onclick=async()=>{const key=envForm.elements.key.value.trim();if(!key||!confirm("Excluir a variável "+key+"?"))return;try{await api(path+"/env","PUT",{values:{},remove:[key]});notify("Variável excluída");await displayKeys();if(!exampleList.classList.contains("hide"))await showEnvExample()}catch(e){failure(e)}};
 async function displayKeys(){try{const d=await api(path+"/env");envPanel.querySelector("[data-envkeys]").textContent=d.keys.length?"Chaves cadastradas: "+d.keys.join(", "):"Nenhuma variável cadastrada."}catch(e){failure(e)}}
 card.append(envPanel);
 const autoPanel=document.createElement("div");autoPanel.style.marginTop="14px";autoPanel.innerHTML='<label class="small muted" style="display:flex;gap:9px;align-items:center"><input type="checkbox" style="width:auto" data-autogit> Atualização automática pelo Git a cada 3 minutos (faz pull e deploy quando houver alterações)</label>';
