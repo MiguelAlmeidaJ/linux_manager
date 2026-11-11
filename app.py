@@ -9,6 +9,8 @@ import pty
 import re
 import secrets
 import signal
+import shutil
+import threading
 import subprocess
 import time
 from pathlib import Path
@@ -214,6 +216,66 @@ def create_project(payload: Project, request: Request):
     data[payload.name] = {"repo": payload.repo, "branch": payload.branch}
     save(data)
     return {"ok": True}
+
+PROJECT_REMOVAL_LOCK = threading.RLock()
+
+
+class RemoveProject(BaseModel):
+    confirmation: str
+    archive: bool = True
+
+
+@app.post("/api/projects/{name}/remove")
+def remove_project(name: str, payload: RemoveProject, request: Request):
+    """Stop only this app's PM2 processes and archive project files; never drop DBs."""
+    assert_auth(request)
+    require_secure_database_admin(request)
+    if not payload.archive or payload.confirmation != name:
+        raise HTTPException(400, "Confirme digitando exatamente o nome da aplicação")
+    with PROJECT_REMOVAL_LOCK:
+        entry, path = get_project(name)
+        if dj.snapshot(name)["status"] in ("queued", "running"):
+            raise HTTPException(409, "Há um deploy em andamento. Finalize-o antes da remoção.")
+        # Docker projects may have active containers and their own persistent volumes.
+        # Do not guess whether stopping them would affect another application.
+        if entry.get("runtime") == "docker":
+            raise HTTPException(409, "Remoção de aplicações Docker requer parar e verificar manualmente os containers. Nenhum arquivo foi removido.")
+        active = pm2_process_snapshot()
+        owned = []
+        for p in active:
+            cwd = p.get("pm2_env", {}).get("pm_cwd")
+            if (isinstance(cwd, str) and Path(cwd).resolve().is_relative_to(path)) or p.get("name") == "lm-" + name:
+                owned.append(p)
+        # Check names against other PM2 workdirs; do not stop ambiguous/shared processes.
+        process_names = sorted(set(p["name"] for p in owned if p.get("name")))
+        for pname in process_names:
+            matches = [p for p in active if p.get("name") == pname]
+            if len(matches) != 1:
+                raise HTTPException(409, f"Processo {pname} ambíguo; remoção cancelada")
+        archive_base = ROOT.parent / "archived-projects"
+        archive_base.mkdir(mode=0o700, parents=True, exist_ok=True)
+        archive_dir = archive_base / (name + "-" + str(int(time.time())) + "-" + secrets.token_hex(4))
+        archive_dir.mkdir(mode=0o700)
+        try:
+            for pname in process_names:
+                command(["pm2", "delete", pname], timeout=35)
+            if process_names:
+                command(["pm2", "save"], timeout=25)
+            # Rename on same filesystem: retained for recovery, never rm -rf.
+            shutil.move(str(path), str(archive_dir / "project"))
+            secret_file = ROOT.parent / "env" / (name + ".json")
+            if secret_file.is_file() and not secret_file.is_symlink():
+                shutil.move(str(secret_file), str(archive_dir / "variables.json"))
+            data = records()
+            data.pop(name, None)
+            save(data)
+        except Exception:
+            # No destructive directory removal: retained archive can be recovered.
+            raise
+        return {"removed": True, "name": name,
+                "archived_at": str(archive_dir), "stopped_processes": process_names,
+                "database_preserved": True}
+
 
 @app.post("/api/projects/{name}/pull")
 def update_project(name: str, request: Request):
