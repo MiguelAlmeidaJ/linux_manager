@@ -228,7 +228,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div id="toast" class="toast hide"></div>
 <script>
 const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria"};
-let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="";
+let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="",currentUserId=null;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
 async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
@@ -238,7 +238,7 @@ function result(text){$("output").textContent=cleanLog(typeof text==="string"?te
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
 function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
-async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"))active="dashboard";mainView();await refresh()}catch{loginView()}}
+async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;currentUserId=me.user_id;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"))active="dashboard";mainView();await refresh()}catch{loginView()}}
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{username:$("loginUsername").value.trim(),password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
 function switchTab(page){if((page==="users"||page==="audit")&&currentRole!=="admin")return;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
@@ -568,8 +568,12 @@ $("userForm").onsubmit=async e=>{
  e.preventDefault();const form=e.target,payload=Object.fromEntries(new FormData(form));payload.active=payload.active==="true";
  if(!payload.password)delete payload.password;
  const button=form.querySelector('button[type="submit"]');button.disabled=true;
- try{if(editingUserId===null)await api("/users","POST",payload);else await api("/users/"+editingUserId,"PUT",payload);
- notify("Usuário salvo");closeUserModal();await loadUsers()}catch(e){failure(e)}finally{button.disabled=false}
+ try{const changingOwnAccess=editingUserId===currentUserId&&(payload.password||payload.role!=="admin"||!payload.active);
+  if(editingUserId===null)await api("/users","POST",payload);else await api("/users/"+editingUserId,"PUT",payload);
+  closeUserModal();
+  if(changingOwnAccess){notify("Credenciais alteradas. Entre novamente.");disconnect();loginView();return}
+  notify("Usuário salvo");await loadUsers()
+ }catch(e){failure(e)}finally{button.disabled=false}
 };
 async function loadAudit(){
  try{
