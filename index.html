@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Linux Manager — Server Console</title>
+<link rel="icon" id="dynamicFavicon" href="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 64 64\'%3E%3Crect width=\'64\' height=\'64\' rx=\'14\' fill=\'%23315fd0\'/%3E%3Ctext x=\'32\' y=\'45\' font-size=\'41\' text-anchor=\'middle\' fill=\'white\'%3E⌘%3C/text%3E%3C/svg%3E">
 <style>
 :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:#e6eaf2;background:#0b1019;color-scheme:dark;--bg:#0b1019;--side:#0e1521;--card:#111a28;--card2:#151f2e;--line:#253144;--text:#e6eaf2;--muted:#8795ac;--accent:#6c9aff;--green:#4ed6a2;--red:#ff787b}
 *{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.45;cursor:not-allowed}
@@ -141,10 +142,30 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 .user-inline{display:flex;gap:12px;align-items:center}.user-initial{border-radius:9px;background:#edf2fb;color:#4167a9;display:grid;place-items:center;width:35px;height:35px;font-weight:700}
 #usersTableWrap .table td,#auditTableWrap .table td{vertical-align:middle}
 @media(max-width:780px){#pm2Overview{grid-template-columns:1fr!important}.user-dialog{padding:20px}}
+
+/* Configurações > Identidade visual */
+.brand-logo{overflow:hidden;flex-shrink:0}
+.brand-logo .custom-brand-logo{width:100%;height:100%;object-fit:contain;display:block}
+.brand-logo:has(.custom-brand-logo:not(.hide)){background:transparent;box-shadow:none}
+.branding-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.branding-item{padding:21px;border:1px solid #e3eaf3;border-radius:14px;background:#fafcff}
+.branding-visual{height:135px;display:flex;align-items:center;justify-content:center;background:#eff4fa;border:1px dashed #dce5ef;border-radius:12px;margin-bottom:18px}
+.branding-preview-logo,.branding-preview-favicon{display:flex;align-items:center;justify-content:center;color:#315fd0;font-weight:750}
+.branding-preview-logo{width:230px;height:100px;max-width:100%}
+.branding-preview-logo img{max-height:100%;max-width:100%;object-fit:contain}
+.branding-preview-favicon{width:58px;height:58px;background:#fff;border:1px solid #d8e1ef;border-radius:13px;font-size:36px;overflow:hidden}
+.branding-preview-favicon img{width:100%;height:100%;object-fit:contain}
+.branding-title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.branding-title h3{margin-bottom:8px;font-size:15px}
+.branding-item input[type=file]{background:#fff!important;padding:10px!important;font-size:12px}
+.branding-application-demo{border:1px solid #e3eaf3;background:#f8fafd;border-radius:12px;padding:18px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+.branding-application-demo .brand{padding:0}
+.branding-application-demo .brand strong{color:#15263d}
+@media(max-width:850px){.branding-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
+<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo"><span class="default-brand-glyph">⌘</span><img class="custom-brand-logo hide" alt="Logo Linux Manager"></div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
 <div class="shell hide" id="app">
 <aside class="sidebar">
 <div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div>
@@ -160,6 +181,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="nav-label admin-nav hide" style="padding-top:24px">Administração</div>
 <button data-tab="users" class="admin-nav hide"><span class="ico">♧</span>Usuários</button>
 <button data-tab="audit" class="admin-nav hide"><span class="ico">☷</span>Auditoria</button>
+<button data-tab="settings" class="admin-nav hide"><span class="ico">⚙</span>Configurações</button>
 </nav>
 <div class="sidefoot"><div class="online"><span class="dot"></span><span>Servidor conectado</span></div><div class="muted small" style="margin-top:9px">Single-server · Frost</div></div>
 </aside>
@@ -220,6 +242,15 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <section id="users" class="hide"><div class="heading"><div><h1>Usuários</h1><p>Gerencie contas, permissões e acessos ao Linux Manager.</p></div><button id="createUser">+ Criar usuário</button></div><div class="panel"><div class="section-top"><h2>Contas cadastradas</h2><span class="badge" id="usersCount">—</span></div><div id="usersTableWrap" class="table-wrap"></div></div></section>
 <section id="audit" class="hide"><div class="heading"><div><h1>Auditoria</h1><p>Histórico de acessos e operações pelo painel. Comandos digitados no terminal não são registrados.</p></div><button class="ghost" id="refreshAudit">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Atividade recente</h2><span class="badge" id="auditTotal">—</span></div><div id="auditTableWrap" class="table-wrap"></div><div class="actions" style="justify-content:space-between;margin-top:16px"><button type="button" id="auditPrev" class="ghost">Anterior</button><span class="small muted" id="auditPage">Página 1</span><button type="button" id="auditNext" class="ghost">Próxima</button></div></div></section>
 <dialog id="userDialog" class="user-dialog"><form id="userForm" class="formgrid"><div class="wide"><div class="section-top"><div><h2 id="userDialogTitle">Criar usuário</h2><p class="small muted">Dados de acesso ao painel</p></div><button type="button" class="ghost" id="closeUserDialog">Fechar</button></div></div><label class="field">Nome de usuário<input name="username" autocomplete="off" required minlength="3" maxlength="40" pattern="[a-z][a-z0-9._-]{2,39}"></label><label class="field">E-mail<input name="email" type="email" required></label><label class="field">Tipo<select name="role"><option value="user">User</option><option value="admin">Admin</option></select></label><label class="field" id="userStatusField">Status<select name="active"><option value="true">Ativo</option><option value="false">Inativo</option></select></label><label class="field wide">Senha<input name="password" type="password" autocomplete="new-password" minlength="12" placeholder="Mínimo de 12 caracteres"><span class="help" id="passwordHelp">Obrigatória para criar o usuário.</span></label><div class="wide actions" style="justify-content:flex-end"><button type="button" class="ghost" id="cancelUserDialog">Cancelar</button><button type="submit">Salvar usuário</button></div></form></dialog>
+<section id="settings" class="hide">
+<div class="heading"><div><h1>Configurações</h1><p>Personalize a identidade visual do Linux Manager para todas as contas.</p></div></div>
+<div class="panel" style="margin-bottom:18px"><div class="section-top"><div><h2>Identidade visual</h2><p class="small muted">Logo e favicon serão aplicados à navegação e à tela de login.</p></div><span class="badge">Somente admin</span></div>
+<div class="branding-grid">
+<article class="branding-item"><div class="branding-visual"><div id="brandingLogoPreview" class="branding-preview-logo"><span>⌘ Linux Manager</span></div></div><div class="branding-title"><h3>Logo do sistema</h3><span class="small muted">Recomendado: imagem horizontal ou quadrada</span></div><p class="help">PNG, JPEG ou WebP · até 1 MB. Para o melhor resultado, use uma logo com fundo transparente.</p><input type="file" id="brandingLogoInput" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" aria-label="Selecionar logo"><div class="actions" style="margin-top:15px"><button type="button" id="brandingLogoSave">Salvar logo</button><button type="button" class="ghost" id="brandingLogoReset">Restaurar padrão</button></div></article>
+<article class="branding-item"><div class="branding-visual"><div id="brandingFaviconPreview" class="branding-preview-favicon"><span>⌘</span></div></div><div class="branding-title"><h3>Favicon</h3><span class="small muted">Ícone exibido na aba do navegador</span></div><p class="help">PNG, ICO ou WebP · até 1 MB. Recomendado: imagem quadrada de 32×32 ou 64×64 px.</p><input type="file" id="brandingFaviconInput" accept=".png,.ico,.webp,image/png,image/x-icon,image/webp" aria-label="Selecionar favicon"><div class="actions" style="margin-top:15px"><button type="button" id="brandingFaviconSave">Salvar favicon</button><button type="button" class="ghost" id="brandingFaviconReset">Restaurar padrão</button></div></article>
+</div></div>
+<div class="panel"><div class="section-top"><h2>Prévia da aplicação</h2><span class="badge">Identidade atual</span></div><div class="branding-application-demo"><div class="brand"><div class="brand-logo"><span class="default-brand-glyph">⌘</span><img class="custom-brand-logo hide" alt="Prévia da logo"></div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><div class="small muted">A identidade será compartilhada por todos os usuários e não altera seus projetos.</div></div></div>
+</section>
 <section id="terminal" class="hide"><div class="heading"><div><h1>Terminal</h1><p>Acesso à shell do usuário responsável pelos projetos.</p></div></div><div class="panel"><p class="small muted">O terminal deve ser usado apenas em conexão HTTPS confiável ou rede restrita.</p><div class="actions" style="margin-bottom:15px"><button id="connectTerminal">Conectar</button><button id="disconnectTerminal" class="ghost">Desconectar</button></div><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></div></section>
 <details id="operationPanel" class="panel operation-panel" style="margin-top:20px"><summary>Console de operações <span class="muted small">· abrir logs e resultados</span></summary><div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></details>
 </div>
@@ -227,7 +258,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 </div>
 <div id="toast" class="toast hide"></div>
 <script>
-const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria"};
+const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria",settings:"Configurações"};
 let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="",currentUserId=null;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
@@ -238,11 +269,11 @@ function result(text){$("output").textContent=cleanLog(typeof text==="string"?te
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
 function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
-async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;currentUserId=me.user_id;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"))active="dashboard";mainView();await refresh()}catch{loginView()}}
+async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;currentUserId=me.user_id;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"||active==="settings"))active="dashboard";mainView();await refresh()}catch{loginView()}}
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{username:$("loginUsername").value.trim(),password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
-function switchTab(page){if((page==="users"||page==="audit")&&currentRole!=="admin")return;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
-if(page==="users")loadUsers();if(page==="audit")loadAudit();if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
+function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
+if(page==="settings")loadBranding();if(page==="users")loadUsers();if(page==="audit")loadAudit();if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
 async function refresh(){try{const [s,h,st]=await Promise.all([api("/stats"),api("/host"),api("/projects/status")]);latestStatus=st;$("hostname").textContent=s.hostname;const data=[
