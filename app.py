@@ -240,7 +240,20 @@ def remove_project(name: str, payload: RemoveProject, request: Request):
         # Do not guess whether stopping them would affect another application.
         if entry.get("runtime") == "docker":
             raise HTTPException(409, "Remoção de aplicações Docker requer parar e verificar manualmente os containers. Nenhum arquivo foi removido.")
-        active = pm2_process_snapshot()
+        # Fail closed if the PM2 process list cannot be inspected.
+        try:
+            pm2_result = subprocess.run(["pm2", "jlist"], env=subprocess_env(),
+                capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=20)
+            if pm2_result.returncode != 0 or len(pm2_result.stdout) > 4_000_000:
+                raise ValueError("PM2 indisponível")
+            raw_processes = json.loads(pm2_result.stdout)
+            if not isinstance(raw_processes, list):
+                raise ValueError("Resposta PM2 inválida")
+            active = [{"name": p.get("name"),
+                       "pm2_env": {"pm_cwd": p.get("pm2_env", {}).get("pm_cwd")}}
+                      for p in raw_processes if isinstance(p, dict)]
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            raise HTTPException(503, "Não foi possível verificar os processos PM2; remoção cancelada")
         owned = []
         for p in active:
             cwd = p.get("pm2_env", {}).get("pm_cwd")
@@ -262,10 +275,10 @@ def remove_project(name: str, payload: RemoveProject, request: Request):
             if process_names:
                 command(["pm2", "save"], timeout=25)
             # Rename on same filesystem: retained for recovery, never rm -rf.
-            shutil.move(str(path), str(archive_dir / "project"))
+            os.replace(path, archive_dir / "project")
             secret_file = ROOT.parent / "env" / (name + ".json")
             if secret_file.is_file() and not secret_file.is_symlink():
-                shutil.move(str(secret_file), str(archive_dir / "variables.json"))
+                os.replace(secret_file, archive_dir / "variables.json")
             data = records()
             data.pop(name, None)
             save(data)
