@@ -340,3 +340,11 @@ pnpm --filter @aicorta/api system:create
 ```
 
 O script requer senha SYSTEM de 16+ caracteres e URL do banco válida. A geração do arquivo físico não reinicia os processos em execução; para aplicar variáveis à API e ao Next.js, execute novo deploy, especialmente para valores NEXT_PUBLIC_* embutidos no build.
+
+## Editor de texto .env por aplicação
+
+Em **Aplicações → Variáveis .env → Editar .env completo**, o administrador pode abrir um editor de texto com as variáveis já salvas, uma por linha, no formato `NOME=valor`. O editor exibe valores reais, inclusive senhas: só abra num navegador e computador confiáveis, usando HTTPS (ou túnel SSH local). Evite screenshots, compartilhamento de tela, extensões e cópias externas dos valores.
+
+Ao salvar, o Linux Manager valida a sintaxe, impede variáveis duplicadas e nomes reservados, preserva os segredos que não foram alterados, atualiza o cofre privado e sincroniza o `.env` físico do projeto com permissão `0600`. Remover uma linha remove a variável correspondente. O sistema detecta conflitos de edição através de uma revisão SHA-256 e pede recarga quando outra sessão salvou primeiro. Um `.env` preexistente não gerenciado pelo painel nunca é sobrescrito.
+
+A abertura utiliza requisição POST autenticada, com verificação de origem HTTPS/TLS pelo proxy confiável e resposta `Cache-Control: no-store`. Não devolva conteúdo de `.env` em logs, mensagens de erro ou capturas de tela. O navegador recebe os valores apenas após a ação explícita **Editar .env completo**. Após alterar o `.env`, execute um novo deploy para aplicar as mudanças às aplicações em execução, incluindo variáveis `NEXT_PUBLIC_*` compiladas pelo Next.js.
