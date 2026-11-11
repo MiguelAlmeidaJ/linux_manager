@@ -425,3 +425,24 @@ Agora exibe indicadores de total, online e reinícios, CPU, memória e controles
 ### Atualização
 
 Faça backup privado do /opt/linux-manager/.env e de /srv/linux-manager antes de migrar. Em seguida, como linuxmanager, execute git pull --ff-only e .venv/bin/python -m py_compile app.py identity_store.py; reinicie sudo systemctl restart linux-manager. Abra pelo HTTPS/Traefik e faça login com admin + senha anterior. Não é necessário reiniciar as aplicações PM2.
+
+## Configurações administrativas — logo e favicon
+
+A página **Configurações**, visível somente para usuários com papel admin, permite personalizar a logo do painel e o favicon do navegador. Há seleção de arquivo, prévia, gravação e restauração individual de cada item. A logo aparece na navegação, na página de login e na prévia de configurações; o favicon aparece na aba do navegador. Usuários comuns visualizam a identidade configurada, mas não podem alterá-la.
+
+Formatos: logo PNG, JPEG ou WebP; favicon PNG, WebP ou ICO. Máximo de 1 MB por imagem. Arquivos SVG e HTML não são aceitos. O backend valida assinatura de arquivo e mantém os nomes controlados, não aceita caminhos enviados pelos usuários. Atualização e restauração exigem sessão de administrador e HTTPS por proxy explicitamente confiável ou túnel SSH local. Os eventos branding.updated e branding.restored são registrados na Auditoria.
+
+Armazenamento privado: /srv/linux-manager/branding/ (diretório 0700, arquivos 0600). Inclua essa pasta em backup seguro. Os recursos são entregues por endpoints restritos a imagens com X-Content-Type-Options: nosniff. Não é necessário reiniciar o Linux Manager após alterar logo ou favicon; a mudança vale para as próximas visitas e também é atualizada na sessão atual.
+
+### Atualização
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python -m py_compile app.py branding.py identity_store.py
+exit
+sudo systemctl restart linux-manager
+```
+
+Após atualizar a página com Ctrl+Shift+R, faça login como admin e abra **Configurações**. Se ainda não tiver uma imagem, o ícone padrão do Linux Manager continuará sendo mostrado.
