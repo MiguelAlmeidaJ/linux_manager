@@ -130,10 +130,21 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 
 .operation-panel{padding:14px 20px}.operation-panel>summary{cursor:pointer;color:#526781;font-size:12px;font-weight:650;user-select:none;list-style:revert}.operation-panel:not([open]){background:transparent;border-style:dashed;box-shadow:none}.operation-panel[open]>summary{color:#263a55}.operation-panel pre{margin-top:10px;max-height:240px}
 .service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.service-item{padding:19px;border:1px solid #e2e9f2;border-radius:12px;background:#fafcff}.service-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.service-head strong{font-size:16px;color:#1a2c45}.service-head p{margin:6px 0 0}.service-meta{color:#61758d;border-top:1px solid #e6edf5;margin-top:17px;padding-top:12px;font-size:12px}.log-output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.table td{overflow-wrap:anywhere}@media(max-width:1100px){.service-grid{grid-template-columns:1fr}}#output,#serviceLogsText{white-space:pre;overflow-x:auto;overflow-wrap:normal;word-break:normal;tab-size:4}#term,.project-terminal{white-space:pre;overflow-x:auto;overflow-wrap:normal;word-break:normal}
+
+.user-dialog{border:1px solid #e1e7f1;border-radius:16px;box-shadow:0 28px 95px #10284844;background:#fff;color:#223652;padding:30px;width:min(680px,calc(100vw - 28px));max-height:90vh;overflow:auto}
+.user-dialog::backdrop{background:#101d36a8;backdrop-filter:blur(3px)}.user-dialog .section-top{margin-bottom:4px}
+.pm2-stat{padding:18px 21px;background:#fff;border:1px solid var(--line);border-radius:13px}
+.pm2-stat strong{display:block;font-size:24px;color:#1a304c;margin-top:5px}
+.pm2-stat span{font-size:12px;color:var(--muted)}
+.pm2-acts{display:flex;gap:6px;flex-wrap:wrap}
+.pm2-acts button{font-size:11px;padding:7px 9px}
+.user-inline{display:flex;gap:12px;align-items:center}.user-initial{border-radius:9px;background:#edf2fb;color:#4167a9;display:grid;place-items:center;width:35px;height:35px;font-weight:700}
+#usersTableWrap .table td,#auditTableWrap .table td{vertical-align:middle}
+@media(max-width:780px){#pm2Overview{grid-template-columns:1fr!important}.user-dialog{padding:20px}}
 </style>
 </head>
 <body>
-<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha de administrador"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
+<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
 <div class="shell hide" id="app">
 <aside class="sidebar">
 <div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div>
@@ -146,11 +157,14 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <button data-tab="databases"><span class="ico">◈</span>Bancos de Dados</button>
 <button data-tab="ports"><span class="ico">⇄</span>Portas de rede</button>
 <button data-tab="terminal"><span class="ico">⌘</span>Terminal</button>
+<div class="nav-label admin-nav hide" style="padding-top:24px">Administração</div>
+<button data-tab="users" class="admin-nav hide"><span class="ico">♧</span>Usuários</button>
+<button data-tab="audit" class="admin-nav hide"><span class="ico">☷</span>Auditoria</button>
 </nav>
 <div class="sidefoot"><div class="online"><span class="dot"></span><span>Servidor conectado</span></div><div class="muted small" style="margin-top:9px">Single-server · Frost</div></div>
 </aside>
 <div class="main">
-<header class="topbar"><div class="breadcrumb">Servidor <span style="color:#53667e">/</span> <span id="crumb">Visão geral</span></div><div class="topright"><span id="hostname" class="muted small">Linux</span><span class="avatar">LM</span><button class="subtle" id="logout">Sair</button></div></header>
+<header class="topbar"><div class="breadcrumb">Servidor <span style="color:#53667e">/</span> <span id="crumb">Visão geral</span></div><div class="topright"><span id="hostname" class="muted small">Linux</span><span id="sessionUser" class="muted small"></span><span class="avatar">LM</span><button class="subtle" id="logout">Sair</button></div></header>
 <div class="content">
 <section id="dashboard">
 <div class="heading"><div><h1>Visão geral</h1><p>Acompanhe o estado e os recursos do seu servidor em tempo real.</p></div><button class="ghost" id="refresh">↻ Atualizar</button></div>
@@ -179,7 +193,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="wide"><button>Clonar repositório</button><p class="help">Após clonar, configure runtime, porta e deploy no cartão da aplicação.</p></div></form></div>
 <div id="projectList"><div class="empty"><span class="glyph">◇</span>Carregando aplicações...</div></div>
 </section>
-<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Gerenciamento dos processos Node.js e Python.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>Reinícios</th><th>Memória</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
+<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><div id="pm2Overview" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px"></div><div class="panel"><div class="section-top"><h2>Processos em execução</h2><span class="badge" id="pm2Count">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
 <section id="docker" class="hide">
 <div class="heading"><div><h1>Containers e serviços</h1><p>Gerencie serviços compartilhados sem interromper containers de outras aplicações.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div>
 <div class="panel"><div class="section-top"><div><h2>Catálogo de serviços</h2><p class="small muted">Instâncias compartilhadas · acesso local · volumes persistentes</p></div><span class="badge">Gerenciado</span></div><div id="managedServiceList" class="service-grid"></div><div class="help" style="margin-top:15px">SQL Server e serviços adicionais exigirão implantação dedicada e dimensionamento de recursos. Nenhum serviço será exposto publicamente pelo painel.</div></div>
@@ -203,6 +217,9 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <p class="help" style="margin-top:15px">Para criar serviços, bancos ou usuários, abra o painel via HTTPS ou túnel SSH em localhost. O endereço HTTP da rede local não é aceito para operações com credenciais. Volumes persistentes não substituem backups.</p>
 </section>
 <section id="ports" class="hide"><div class="heading"><div><h1>Portas de rede</h1><p>Conexões TCP em escuta no servidor.</p></div><button class="ghost" id="reloadPorts">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Porta</th><th>Endereço</th><th>PID</th></tr></thead><tbody id="portsTable"></tbody></table></div></div></section>
+<section id="users" class="hide"><div class="heading"><div><h1>Usuários</h1><p>Gerencie contas, permissões e acessos ao Linux Manager.</p></div><button id="createUser">+ Criar usuário</button></div><div class="panel"><div class="section-top"><h2>Contas cadastradas</h2><span class="badge" id="usersCount">—</span></div><div id="usersTableWrap" class="table-wrap"></div></div></section>
+<section id="audit" class="hide"><div class="heading"><div><h1>Auditoria</h1><p>Histórico de acessos e alterações realizadas pelo painel.</p></div><button class="ghost" id="refreshAudit">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Atividade recente</h2><span class="badge" id="auditTotal">—</span></div><div id="auditTableWrap" class="table-wrap"></div><div class="actions" style="justify-content:space-between;margin-top:16px"><button type="button" id="auditPrev" class="ghost">Anterior</button><span class="small muted" id="auditPage">Página 1</span><button type="button" id="auditNext" class="ghost">Próxima</button></div></div></section>
+<dialog id="userDialog" class="user-dialog"><form id="userForm" class="formgrid"><div class="wide"><div class="section-top"><div><h2 id="userDialogTitle">Criar usuário</h2><p class="small muted">Dados de acesso ao painel</p></div><button type="button" class="ghost" id="closeUserDialog">Fechar</button></div></div><label class="field">Nome de usuário<input name="username" autocomplete="off" required minlength="3" maxlength="40" pattern="[a-z][a-z0-9._-]{2,39}"></label><label class="field">E-mail<input name="email" type="email" required></label><label class="field">Tipo<select name="role"><option value="user">User</option><option value="admin">Admin</option></select></label><label class="field" id="userStatusField">Status<select name="active"><option value="true">Ativo</option><option value="false">Inativo</option></select></label><label class="field wide">Senha<input name="password" type="password" autocomplete="new-password" minlength="12" placeholder="Mínimo de 12 caracteres"><span class="help" id="passwordHelp">Obrigatória para criar o usuário.</span></label><div class="wide actions" style="justify-content:flex-end"><button type="button" class="ghost" id="cancelUserDialog">Cancelar</button><button type="submit">Salvar usuário</button></div></form></dialog>
 <section id="terminal" class="hide"><div class="heading"><div><h1>Terminal</h1><p>Acesso à shell do usuário responsável pelos projetos.</p></div></div><div class="panel"><p class="small muted">O terminal deve ser usado apenas em conexão HTTPS confiável ou rede restrita.</p><div class="actions" style="margin-bottom:15px"><button id="connectTerminal">Conectar</button><button id="disconnectTerminal" class="ghost">Desconectar</button></div><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></div></section>
 <details id="operationPanel" class="panel operation-panel" style="margin-top:20px"><summary>Console de operações <span class="muted small">· abrir logs e resultados</span></summary><div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></details>
 </div>
@@ -210,8 +227,8 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 </div>
 <div id="toast" class="toast hide"></div>
 <script>
-const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal"};
-let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[];
+const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria"};
+let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="";
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
 async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
@@ -221,11 +238,11 @@ function result(text){$("output").textContent=cleanLog(typeof text==="string"?te
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
 function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
-async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;mainView();await refresh()}catch{loginView()}}
-$("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
+async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"))active="dashboard";mainView();await refresh()}catch{loginView()}}
+$("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{username:$("loginUsername").value.trim(),password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
-function switchTab(page){active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
-if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
+function switchTab(page){if((page==="users"||page==="audit")&&currentRole!=="admin")return;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
+if(page==="users")loadUsers();if(page==="audit")loadAudit();if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
 async function refresh(){try{const [s,h,st]=await Promise.all([api("/stats"),api("/host"),api("/projects/status")]);latestStatus=st;$("hostname").textContent=s.hostname;const data=[
