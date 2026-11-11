@@ -1,5 +1,6 @@
 """Project-scoped deploy jobs and .env management. Single Uvicorn worker per installation."""
 import json
+import hashlib
 import os
 import re
 import shlex
@@ -140,7 +141,83 @@ def sync_project_dotenv(projects_root: Path, name: str, values: dict[str, str] |
         return {"synced": True, "file": ".env", "keys": sorted(stored)}
 
 
+class EnvDocument(BaseModel):
+    content: str = Field(max_length=131072)
+    revision: str = Field(min_length=64, max_length=64)
+
+
+def env_revision(values: dict[str, str]) -> str:
+    canonical = json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def read_env_document(projects_root: Path, name: str) -> dict:
+    with ENV_WRITE_LOCK:
+        values = read_env(projects_root, name)
+        text = ENV_HEADER + "\n" + "".join(
+            key + "=" + _dotenv_quote(value) + "\n"
+            for key, value in sorted(values.items())
+        )
+        return {"content": text, "revision": env_revision(values), "keys": len(values)}
+
+
+def parse_env_document(content: str) -> dict[str, str]:
+    """Strict single-line dotenv parser: no expansion, no shell, no interpolation."""
+    if len(content.encode("utf-8")) > 131072 or "\x00" in content:
+        raise HTTPException(400, "Documento .env inválido ou muito grande")
+    parsed = {}
+    for index, source in enumerate(content.splitlines(), 1):
+        line = source.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        key, separator, value = line.partition("=")
+        key = key.strip()
+        if not separator or not ENV_KEY.fullmatch(key) or key in RESERVED:
+            raise HTTPException(400, f"Linha {index}: nome de variável inválido")
+        if key in parsed:
+            raise HTTPException(400, f"Linha {index}: variável duplicada ({key})")
+        value = value.strip()
+        if value.startswith('"'):
+            try:
+                decoded = json.loads(value)
+            except (ValueError, TypeError):
+                raise HTTPException(400, f"Linha {index}: valor com aspas duplas inválido")
+            if not isinstance(decoded, str):
+                raise HTTPException(400, f"Linha {index}: valor deve ser texto")
+            value = decoded
+        elif value.startswith("'"):
+            if not value.endswith("'") or len(value) < 2:
+                raise HTTPException(400, f"Linha {index}: aspas simples não fechadas")
+            value = value[1:-1]
+        if len(value) > 8192 or "\n" in value or "\r" in value:
+            raise HTTPException(400, f"Linha {index}: valor inválido ou muito grande")
+        parsed[key] = value
+        if len(parsed) > 100:
+            raise HTTPException(400, "Limite de 100 variáveis por projeto")
+    return parsed
+
+
+def write_env_document(projects_root: Path, name: str, payload: EnvDocument) -> dict:
+    with ENV_WRITE_LOCK:
+        before = read_env(projects_root, name)
+        if env_revision(before) != payload.revision:
+            raise HTTPException(409, "Variáveis alteradas em outra sessão. Recarregue o editor antes de salvar.")
+        after = parse_env_document(payload.content)
+        result = save_env(projects_root, name, EnvChange(
+            values=after,
+            remove=[key for key in before if key not in after],
+        ))
+        return {"keys": result, "revision": env_revision(after), "saved": True}
+
+
 def save_env(projects_root: Path, name: str, change: EnvChange):
+    with ENV_WRITE_LOCK:
+        return _save_env_locked(projects_root, name, change)
+
+
+def _save_env_locked(projects_root: Path, name: str, change: EnvChange):
     old = read_env(projects_root, name)
     for k, v in change.values.items():
         if not ENV_KEY.fullmatch(k) or k in RESERVED or len(v) > 8192 or "\x00" in v:
