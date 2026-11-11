@@ -218,6 +218,7 @@ envPanel.querySelector("[data-save-env-document]").onclick=async()=>{
  try{
   const data=await api(path+"/env/document","PUT",{content:editorText.value,revision:editorRevision});
   editorRevision=data.revision;
+  editorOriginal=editorText.value;
   await fetchEditor();
   await displayKeys();
   if(!exampleList.classList.contains("hide"))await showEnvExample();
