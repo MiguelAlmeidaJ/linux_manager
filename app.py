@@ -240,6 +240,31 @@ def panel_audit(request: Request, limit: int = 100, offset: int = 0):
     return identities.list_audit(limit, offset)
 
 
+def audit_action(method: str, path: str) -> str:
+    """Categorize auditable mutations without reading request bodies or secrets."""
+    if path.startswith("/api/pm2/processes/"):
+        return "pm2." + path.rsplit("/", 1)[-1]
+    if path.startswith("/api/projects/"):
+        operation = path.rsplit("/", 1)[-1]
+        if "/env/document" in path:
+            return "environment.save" if method == "PUT" else "environment.open"
+        if operation in ("deploy", "update-deploy", "pull"):
+            return "project." + operation
+        if operation == "remove":
+            return "project.remove"
+        if operation in ("config", "env", "sync"):
+            return "project." + operation
+        if "/process/" in path:
+            return "process." + operation
+    if path.startswith("/api/containers/"):
+        return "service." + path.rsplit("/", 1)[-1]
+    if path.startswith("/api/databases/"):
+        return "database." + path.rsplit("/", 1)[-1]
+    if path == "/api/projects":
+        return "project.create"
+    return "api." + method.lower()
+
+
 @app.middleware("http")
 async def audit_mutations(request: Request, call_next):
     # Every authenticated state-changing API request gets metadata-only audit.
@@ -253,11 +278,11 @@ async def audit_mutations(request: Request, call_next):
         response = await call_next(request)
     except Exception:
         if actor:
-            identities.log(actor["id"], actor["username"], "api." + request.method.lower(),
+            identities.log(actor["id"], actor["username"], audit_action(request.method, path),
                            path, 500, request.client.host if request.client else "")
         raise
     if actor:
-        identities.log(actor["id"], actor["username"], "api." + request.method.lower(),
+        identities.log(actor["id"], actor["username"], audit_action(request.method, path),
                        path, response.status_code, request.client.host if request.client else "")
     return response
 
