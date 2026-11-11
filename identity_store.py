@@ -198,7 +198,11 @@ def edit_user(uid: int, payload: EditUser, actor_id: int):
             if admins < 2:
                 raise HTTPException(409, "É obrigatório manter pelo menos um administrador ativo")
         values = [username, email, payload.role, int(payload.active), int(time.time())]
-        sql = "UPDATE users SET username=?,email=?,role=?,active=?,updated_at=?,session_version=session_version+1"
+        revoke_session = (payload.password is not None or payload.role != existing["role"] or
+                          int(payload.active) != existing["active"])
+        sql = "UPDATE users SET username=?,email=?,role=?,active=?,updated_at=?"
+        if revoke_session:
+            sql += ",session_version=session_version+1"
         if payload.password is not None:
             sql += ",password_hash=?"
             values.append(secret_hash(payload.password))
