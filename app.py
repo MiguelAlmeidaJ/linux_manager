@@ -24,6 +24,7 @@ from pydantic import BaseModel, Field
 import deploy_jobs as dj
 import github_ssh as ghssh
 import database_manager as dbm
+import container_manager as cm
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -333,6 +334,33 @@ def pm2_logs(name: str, request: Request):
 def docker_list(request: Request):
     assert_auth(request)
     return {"output": command(["docker", "ps", "-a", "--format", "table {{.Names}}\t{{.Status}}\t{{.Ports}}"], timeout=20)}
+
+@app.get("/api/containers")
+def containers_inventory(request: Request):
+    assert_auth(request)
+    return {"containers": cm.docker_list(), "services": cm.service_catalog()}
+
+
+@app.post("/api/containers/services/{service}/{action}")
+def managed_container_action(service: str, action: str, payload: cm.ServiceAction, request: Request):
+    assert_auth(request)
+    require_secure_database_admin(request)
+    return cm.manage(service, action, payload.confirmation)
+
+
+@app.post("/api/containers/services/{service}/logs")
+def managed_container_logs(service: str, request: Request):
+    assert_auth(request)
+    require_secure_database_admin(request)
+    return JSONResponse(cm.managed_logs(service), headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/containers/services/redis/bind")
+def managed_redis_bind(payload: cm.RedisBind, request: Request):
+    assert_auth(request)
+    require_secure_database_admin(request)
+    return cm.bind_redis(payload.project, records())
+
 
 @app.post("/api/projects/{name}/docker/{action}")
 def docker_action(name: str, action: str, request: Request):
