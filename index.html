@@ -167,13 +167,17 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 .brand{min-width:0}
 .brand-default{display:flex;align-items:center;gap:12px;min-width:0}
 .brand-full-image{display:block;width:100%;max-width:195px;height:56px;object-fit:contain;object-position:left center;flex-shrink:1}
-.login .brand-full-image{max-width:245px;height:76px}
+.login .brand-full-image{max-width:290px;width:100%;height:116px;object-fit:contain;object-position:center center}
+.login .login-brand{display:flex;justify-content:center;align-items:center;min-height:116px;padding:0;margin:0 0 22px;width:100%}
+.login .login-brand .brand-default{justify-content:center}
+.login .login-brand .brand-logo{width:64px;height:64px;font-size:36px}
+@media(max-width:420px){.login .brand-full-image{height:95px;max-width:100%}.login .login-brand{min-height:95px}}
 .branding-application-demo .brand-full-image{max-width:245px;height:74px}
 @media(max-width:720px){.brand-full-image{height:44px;max-width:165px}}
 </style>
 </head>
 <body>
-<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
+<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand login-brand"><img class="brand-full-image hide" alt="Logo do sistema"><div class="brand-default"><div class="brand-logo">⌘</div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
 <div class="shell hide" id="app">
 <aside class="sidebar">
 <div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div>
