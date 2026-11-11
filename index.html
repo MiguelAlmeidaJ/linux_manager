@@ -359,7 +359,33 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 </div>
 <div id="toast" class="toast hide"></div>
 <script>
-const $=id=>document.getElementById(id);const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria",settings:"Configurações"};
+const $=id=>document.getElementById(id);/* Local inline Lucide-style SVGs: no CDN, font dependency, or emoji navigation. */
+const ICON_PATHS={
+ "layout-dashboard":'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+ "layers-3":'<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
+ "activity":'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+ "boxes":'<path d="M2 10 12 5l10 5-10 5-10-5Z"/><path d="m2 10 0 7 10 5 10-5v-7"/><path d="M12 15v7"/><path d="m7 7.5 10 5"/>',
+ "database":'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
+ "network":'<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-4h14v4"/>',
+ "terminal":'<rect x="2" y="3" width="20" height="18" rx="2"/><path d="m6 8 4 4-4 4M12 16h5"/>',
+ "users-round":'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+ "clipboard-list":'<rect x="4" y="4" width="16" height="18" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M8 12h.01M12 12h5M8 16h.01M12 16h5"/>',
+ "settings-2":'<path d="M3 6h18M3 18h18"/><circle cx="8" cy="6" r="3"/><circle cx="16" cy="18" r="3"/>',
+ "server":'<rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01"/>',
+ "chevron-right":'<path d="m9 18 6-6-6-6"/>',
+ "chevron-down":'<path d="m6 9 6 6 6-6"/>',
+ "log-out":'<path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-6"/>',
+ "shield-check":'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'
+};
+function initializeIcons(){
+ document.querySelectorAll("[data-icon]").forEach(node=>{
+  const content=ICON_PATHS[node.dataset.icon];
+  if(!content)return;
+  node.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true">'+content+'</svg>';
+ })
+}
+initializeIcons();
+const pages={dashboard:"Visão geral",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria",settings:"Configurações"};
 let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="",currentUserId=null;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
@@ -452,10 +478,19 @@ $("brandingLogoReset").onclick=()=>resetBrandImage("logo");
 $("brandingFaviconReset").onclick=()=>resetBrandImage("favicon");
 loadBranding();
 
-async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;currentUserId=me.user_id;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"||active==="settings"))active="dashboard";mainView();await refresh()}catch{loginView()}}
+async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;currentUserId=me.user_id;$("sessionUser").textContent=me.username;
+ $("sessionRole").textContent=me.role==="admin"?"Administrador":"Operador";
+ $("accountMenuName").textContent=me.username;
+ $("accountMenuRole").textContent=me.email||"Conta "+me.role;
+ $("accountAvatar").textContent=me.username.slice(0,2).toUpperCase();
+ $("accountSettings").classList.toggle("hide",me.role!=="admin");
+ document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"||active==="settings"))active="dashboard";mainView();await refresh()}catch{loginView()}}
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{username:$("loginUsername").value.trim(),password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
-$("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
-function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
+$("accountSettings").onclick=()=>{$("accountMenu").open=false;switchTab("settings")};
+document.addEventListener("click",event=>{if($("accountMenu").open&&!$("accountMenu").contains(event.target))$("accountMenu").open=false});
+document.addEventListener("keydown",event=>{if(event.key==="Escape")$("accountMenu").open=false});
+$("logout").onclick=async()=>{$("accountMenu").open=false;try{await api("/logout","POST")}catch{}disconnect();loginView()};
+function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;$("accountMenu").open=false;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
 if(page==="settings")loadBranding();if(page==="users")loadUsers();if(page==="audit")loadAudit();if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
