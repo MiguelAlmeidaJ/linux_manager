@@ -369,3 +369,33 @@ sudo systemctl restart linux-manager
 ```
 
 Atualize o navegador com Ctrl+Shift+R. O deploy e a inicialização das aplicações em PM2 não precisam ser refeitos para aplicar apenas esta atualização visual.
+
+## Gerenciador de Containers — catálogo de serviços compartilhados
+
+A página **Containers** agora exibe um inventário estruturado de todos os containers Docker (nome, imagem, estado, portas e origem) e cartões específicos para **PostgreSQL 17**, **MySQL 8.4** e **Redis 7.4**. Containers que não pertencem ao projeto Compose `linux-manager-databases` são listados **somente para consulta**, sem botões de alteração.
+
+Os serviços gerenciados compartilham o Compose `deploy/databases.compose.yml`, mantendo os volumes e os containers já criados. Portas locais:
+- PostgreSQL: `127.0.0.1:5432`
+- MySQL: `127.0.0.1:3306`
+- Redis: `127.0.0.1:6379`
+
+O botão **Iniciar serviço** executa apenas entradas permitidas do catálogo, verificando previamente conflitos de porta. **Parar serviço** exige confirmação digitando o nome interno; a parada de PostgreSQL/MySQL é bloqueada se houver bancos cadastrados no Linux Manager. Os dados e volumes não são excluídos. **Ver logs** exibe no máximo as últimas 100 linhas, removendo códigos de cores ANSI e mascarando os segredos dos serviços cadastrados.
+
+O Redis recebe uma senha aleatória forte armazenada em `/srv/linux-manager/database-services.env` (modo `0600`), com AOF e volume persistente. Se o arquivo já existir, a nova senha de Redis é adicionada sem trocar as senhas do PostgreSQL e MySQL. Após iniciar Redis, use **Vincular Redis** para configurar `REDIS_URL` em uma aplicação PM2; faça novo deploy para aplicar. O vínculo Docker não está disponível enquanto não houver rede compartilhada segura entre os projetos.
+
+**Avisos:** acesso ao Docker equivale a privilégio elevado no host. A senha Redis fica disponível aos administradores do daemon Docker, pois o container precisa recebê-la. Não exponha o Redis publicamente nem libere a porta 6379 no firewall. Backup, monitoramento de persistência e recuperação ainda precisam ser implementados/testados antes de uso crítico. **SQL Server** não está disponível neste catálogo inicial: exige aceite de licença/EULA, sizing de memória e armazenamento, política de imagens e versão, e um fluxo de provisionamento próprio. Não instalamos imagens arbitrárias pelo painel.
+
+Os consoles da interface agora removem sequências ANSI e mantêm alinhamento das tabelas do PM2 por rolagem horizontal. Logs de deploy novos também desativam cores ANSI na geração.
+
+### Atualização
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python -m py_compile app.py database_manager.py deploy_jobs.py container_manager.py
+exit
+sudo systemctl restart linux-manager
+```
+
+Abra **Containers** e atualize a página com Ctrl+Shift+R. **Não é necessário reiniciar o PostgreSQL ou reimplantar as aplicações existentes** para aplicar a interface. O Redis somente será instalado quando clicar em **Iniciar serviço**.
