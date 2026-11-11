@@ -500,7 +500,93 @@ $("dbCreateForm").onsubmit=async e=>{
  finally{button.disabled=false;button.textContent="Criar banco"}
 };
 
-async function loadPM2(){try{const data=await api("/pm2");$("pm2Table").innerHTML=data.map(p=>'<tr><td>'+esc(p.name)+'</td><td><span class="status '+(p.pm2_env?.status==="online"?"":"off")+'">'+esc(p.pm2_env?.status||"—")+'</span></td><td>'+esc(p.pid)+'</td><td>'+esc(p.pm2_env?.restart_time||0)+'</td><td>'+esc(((p.monit?.memory||0)/1048576).toFixed(1))+' MB</td></tr>').join("")||'<tr><td colspan="5">Nenhum processo.</td></tr>'}catch(e){failure(e)}}
+async function loadPM2(){
+ try {
+  const processes=await api("/pm2"),online=processes.filter(p=>p.pm2_env?.status==="online").length;
+  $("pm2Count").textContent=processes.length+" processos";
+  $("pm2Overview").innerHTML=[["Processos",processes.length],["Online",online],["Reinícios",processes.reduce((a,p)=>a+(p.pm2_env?.restart_time||0),0)]].map(([label,value])=>'<div class="pm2-stat"><span>'+label+'</span><strong>'+value+'</strong></div>').join("");
+  const root=$("pm2Table");root.replaceChildren();
+  if(!processes.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.textContent="Nenhum processo PM2";tr.append(td);root.append(tr)}
+  for(const p of processes){
+   const tr=document.createElement("tr");
+   const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",(p.monit?.cpu??0)+"%",((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
+   fields.forEach((value,i)=>{const td=document.createElement("td");td.textContent=String(value);if(i===0)td.style.fontWeight="650";tr.append(td)});
+   const td=document.createElement("td"),actions=document.createElement("div");actions.className="pm2-acts";
+   for(const [label,action] of [["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
+    const button=document.createElement("button");button.type="button";button.className="ghost";button.textContent=label;
+    button.onclick=async()=>{
+     if(action==="stop"&&!confirm("Parar o processo "+p.name+"?"))return;
+     button.disabled=true;
+     try{const result=await api("/pm2/processes/"+encodeURIComponent(p.name)+"/"+action,"POST",{});
+      if(action==="logs"){resultMessage(result.output||"")}else{notify("Processo "+p.name+": "+action);await loadPM2()}
+     }catch(e){failure(e)}finally{button.disabled=false}
+    };
+    actions.append(button)
+   }
+   td.append(actions);tr.append(td);root.append(tr)
+  }
+ }catch(e){failure(e)}
+}
+function resultMessage(value){result(value);$("operationPanel").scrollIntoView({block:"nearest",behavior:"smooth"})}
+
+let editingUserId=null,auditOffset=0;
+function closeUserModal(){$("userDialog").close();$("userForm").reset();editingUserId=null}
+$("closeUserDialog").onclick=closeUserModal;
+$("cancelUserDialog").onclick=closeUserModal;
+$("userDialog").addEventListener("close",()=>{editingUserId=null;$("userForm").reset()});
+$("createUser").onclick=()=>{
+ editingUserId=null;$("userForm").reset();$("userDialogTitle").textContent="Criar usuário";
+ $("userStatusField").classList.add("hide");$("userForm").elements.password.required=true;
+ $("passwordHelp").textContent="Obrigatória na criação (mínimo 12 caracteres).";$("userDialog").showModal()
+};
+async function loadUsers(){
+ try{
+  const users=await api("/users");$("usersCount").textContent=users.length+" usuários";
+  const table=document.createElement("table");table.className="table";table.innerHTML="<thead><tr><th>Usuário</th><th>Tipo</th><th>Status</th><th>Atualizado</th><th>Ações</th></tr></thead>";
+  const tbody=document.createElement("tbody");
+  for(const user of users){
+   const tr=document.createElement("tr"),td=document.createElement("td"),wrap=document.createElement("div");wrap.className="user-inline";
+   const avatar=document.createElement("span");avatar.className="user-initial";avatar.textContent=user.username.slice(0,2).toUpperCase();
+   const info=document.createElement("div"),strong=document.createElement("strong"),email=document.createElement("div");strong.textContent=user.username;email.className="small muted";email.textContent=user.email;
+   info.append(strong,email);wrap.append(avatar,info);td.append(wrap);tr.append(td);
+   for(const value of [user.role==="admin"?"Admin":"User",user.active?"Ativo":"Inativo",new Date(user.updated_at*1000).toLocaleString("pt-BR")]){const cell=document.createElement("td");cell.textContent=value;tr.append(cell)}
+   const actions=document.createElement("td"),edit=document.createElement("button");edit.className="ghost";edit.textContent="Editar";
+   edit.onclick=()=>{editingUserId=user.id;$("userDialogTitle").textContent="Editar usuário";$("userForm").reset();$("userStatusField").classList.remove("hide");
+    for(const key of ["username","email","role"])$("userForm").elements[key].value=user[key];
+    $("userForm").elements.active.value=String(Boolean(user.active));$("userForm").elements.password.required=false;
+    $("passwordHelp").textContent="Deixe em branco para manter a senha atual.";$("userDialog").showModal()
+   };
+   actions.append(edit);tr.append(actions);tbody.append(tr)
+  }
+  table.append(tbody);$("usersTableWrap").replaceChildren(table)
+ }catch(e){failure(e)}
+}
+$("userForm").onsubmit=async e=>{
+ e.preventDefault();const form=e.target,payload=Object.fromEntries(new FormData(form));payload.active=payload.active==="true";
+ if(!payload.password)delete payload.password;
+ const button=form.querySelector('button[type="submit"]');button.disabled=true;
+ try{if(editingUserId===null)await api("/users","POST",payload);else await api("/users/"+editingUserId,"PUT",payload);
+ notify("Usuário salvo");closeUserModal();await loadUsers()}catch(e){failure(e)}finally{button.disabled=false}
+};
+async function loadAudit(){
+ try{
+  const data=await api("/audit?limit=50&offset="+auditOffset);
+  $("auditTotal").textContent=data.total+" eventos";
+  $("auditPage").textContent="Registros "+(data.items.length?auditOffset+1:0)+" a "+(auditOffset+data.items.length)+" de "+data.total;
+  $("auditPrev").disabled=auditOffset===0;$("auditNext").disabled=auditOffset+50>=data.total;
+  const table=document.createElement("table");table.className="table";table.innerHTML="<thead><tr><th>Data</th><th>Usuário</th><th>Ação</th><th>Recurso</th><th>HTTP</th><th>Origem</th></tr></thead>";
+  const tbody=document.createElement("tbody");
+  for(const item of data.items){const tr=document.createElement("tr");
+   for(const value of [new Date(item.created_at*1000).toLocaleString("pt-BR"),item.username,item.action,item.resource,item.status,item.ip]){const td=document.createElement("td");td.textContent=String(value??"");tr.append(td)}
+   tbody.append(tr)}
+  if(!data.items.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=6;td.textContent="Nenhum evento registrado";tr.append(td);tbody.append(tr)}
+  table.append(tbody);$("auditTableWrap").replaceChildren(table)
+ }catch(e){failure(e)}
+}
+$("refreshAudit").onclick=()=>{auditOffset=0;loadAudit()};
+$("auditPrev").onclick=()=>{auditOffset=Math.max(0,auditOffset-50);loadAudit()};
+$("auditNext").onclick=()=>{auditOffset+=50;loadAudit()};
+
 async function loadDocker(){
  try{
   const [data,projects]=await Promise.all([api("/containers"),api("/projects")]);
