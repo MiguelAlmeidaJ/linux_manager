@@ -28,6 +28,23 @@ class DatabaseManagerTests(unittest.TestCase):
             finally:
                 dm.SECRETS = original
 
+    def test_redis_password_migration_keeps_existing_database_credentials(self):
+        with tempfile.TemporaryDirectory() as temp:
+            target = Path(temp) / "database-services.env"
+            target.write_text("POSTGRES_ROOT_PASSWORD=" + "p"*40 + "\n" +
+                              "MYSQL_ROOT_PASSWORD=" + "m"*40 + "\n")
+            original = dm.SECRETS
+            try:
+                dm.SECRETS = target
+                values = dm.root_secrets()
+                self.assertEqual(values["POSTGRES_ROOT_PASSWORD"], "p"*40)
+                self.assertEqual(values["MYSQL_ROOT_PASSWORD"], "m"*40)
+                self.assertGreater(len(values["REDIS_PASSWORD"]), 32)
+                self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+                self.assertEqual(dm.root_secrets(), values)
+            finally:
+                dm.SECRETS = original
+
     def test_bind_refuses_docker_before_database_provision(self):
         payload = dm.NewDatabase(engine="postgres", name="my_db", username="owner_user",
                                  password="StrongPasswordExample123", project="demo")
