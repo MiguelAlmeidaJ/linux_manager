@@ -129,7 +129,8 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 @media(max-width:720px){.content{padding:20px 15px}.topbar{padding:0 16px}.proj{padding:18px}.proj-grid{gap:10px 17px}}
 
 .operation-panel{padding:14px 20px}.operation-panel>summary{cursor:pointer;color:#526781;font-size:12px;font-weight:650;user-select:none;list-style:revert}.operation-panel:not([open]){background:transparent;border-style:dashed;box-shadow:none}.operation-panel[open]>summary{color:#263a55}.operation-panel pre{margin-top:10px;max-height:240px}
-.service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.service-item{padding:19px;border:1px solid #e2e9f2;border-radius:12px;background:#fafcff}.service-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.service-head strong{font-size:16px;color:#1a2c45}.service-head p{margin:6px 0 0}.service-meta{color:#61758d;border-top:1px solid #e6edf5;margin-top:17px;padding-top:12px;font-size:12px}.log-output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.table td{overflow-wrap:anywhere}@media(max-width:1100px){.service-grid{grid-template-columns:1fr}}</style>
+.service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.service-item{padding:19px;border:1px solid #e2e9f2;border-radius:12px;background:#fafcff}.service-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.service-head strong{font-size:16px;color:#1a2c45}.service-head p{margin:6px 0 0}.service-meta{color:#61758d;border-top:1px solid #e6edf5;margin-top:17px;padding-top:12px;font-size:12px}.log-output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.table td{overflow-wrap:anywhere}@media(max-width:1100px){.service-grid{grid-template-columns:1fr}}#output,#serviceLogsText{white-space:pre;overflow-x:auto;overflow-wrap:normal;word-break:normal;tab-size:4}#term,.project-terminal{white-space:pre;overflow-x:auto;overflow-wrap:normal;word-break:normal}
+</style>
 </head>
 <body>
 <div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha de administrador"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
@@ -423,7 +424,7 @@ function toggleProjectTerminal(){
  if(!terminalEnabled){termOut.textContent="Terminal desativado. Configure TERMINAL_ENABLED=true no Linux Manager.";return}
  projectSocket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/projects/"+encodeURIComponent(p.name)+"/terminal");
  projectSocket.onopen=()=>{termOut.textContent="Conectado à aplicação "+p.name+"\n";termIn.focus()};
- projectSocket.onmessage=e=>{termOut.textContent+=e.data;termOut.scrollTop=termOut.scrollHeight};
+ projectSocket.onmessage=e=>{termOut.textContent+=cleanLog(e.data);termOut.scrollTop=termOut.scrollHeight};
  projectSocket.onclose=()=>{termOut.textContent+="\n[Conexão encerrada]";projectSocket=null};
  projectSocket.onerror=()=>notify("Não foi possível conectar o terminal da aplicação");
 }
@@ -559,7 +560,7 @@ $("closeServiceLogs").onclick=()=>{$("serviceLogsPanel").classList.add("hide");$
 async function loadPorts(){try{const data=await api("/ports");$("portsTable").innerHTML=data.map(p=>'<tr><td><strong>'+esc(p.port)+'</strong></td><td>'+esc(p.address)+'</td><td>'+esc(p.pid??"—")+'</td></tr>').join("")||'<tr><td colspan="3">Nenhuma porta identificada.</td></tr>'}catch(e){failure(e)}}
 $("reloadPm2").onclick=loadPM2;$("reloadDocker").onclick=loadDocker;$("reloadPorts").onclick=loadPorts;
 function disconnect(){if(socket){socket.close();socket=null}}
-$("connectTerminal").onclick=()=>{if(!terminalEnabled){notify("Terminal desabilitado no servidor");return}disconnect();$("term").textContent="";socket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/terminal");socket.onmessage=e=>{$("term").textContent+=e.data;$("term").scrollTop=$("term").scrollHeight};socket.onclose=()=>{$("term").textContent+="\n[Conexão encerrada]";socket=null};socket.onerror=()=>notify("Falha na conexão do terminal")};
+$("connectTerminal").onclick=()=>{if(!terminalEnabled){notify("Terminal desabilitado no servidor");return}disconnect();$("term").textContent="";socket=new WebSocket((location.protocol==="https:"?"wss://":"ws://")+location.host+"/ws/terminal");socket.onmessage=e=>{$("term").textContent+=cleanLog(e.data);$("term").scrollTop=$("term").scrollHeight};socket.onclose=()=>{$("term").textContent+="\n[Conexão encerrada]";socket=null};socket.onerror=()=>notify("Falha na conexão do terminal")};
 $("disconnectTerminal").onclick=disconnect;
 $("termInput").addEventListener("keydown",e=>{if(e.key==="Enter"&&socket?.readyState===WebSocket.OPEN){socket.send(e.target.value+"\n");e.target.value=""}});
 init();
