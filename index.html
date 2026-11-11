@@ -174,6 +174,74 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 @media(max-width:420px){.login .brand-full-image{height:95px;max-width:100%}.login .login-brand{min-height:95px}}
 .branding-application-demo .brand-full-image{max-width:245px;height:74px}
 @media(max-width:720px){.brand-full-image{height:44px;max-width:165px}}
+
+/* Navigation / header system – unified 18px stroke icons, compact surfaces */
+.sidebar{height:100dvh;overflow-y:auto;overflow-x:hidden;padding:24px 13px 16px;width:250px;scrollbar-width:thin;scrollbar-color:#dde5f0 transparent}
+.sidebar>.brand{padding:0 10px 26px;margin-bottom:14px;border-bottom:1px solid #eef2f7;min-height:72px}
+.sidebar .brand-full-image{max-width:198px;max-height:58px}
+.nav{gap:4px}
+.nav-label{font-size:10px;letter-spacing:1.1px;font-weight:750;color:#96a3b6;padding:15px 13px 9px;margin:0}
+.nav-admin-label{margin-top:18px;padding-top:24px;border-top:1px solid #eef2f7}
+.nav button{min-height:42px;gap:13px;border-radius:10px;padding:10px 13px;color:#64748b;font-size:12.5px;font-weight:560;line-height:1.3}
+.nav button:hover{background:#f4f7fb;color:#263b59}
+.nav button.active{color:#255bc2;background:#ecf3ff;font-weight:700;box-shadow:inset 3px 0 0 #4278dc}
+.nav .ico{height:20px;width:20px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0}
+.nav .ico svg{width:18px;height:18px;stroke-width:1.85}
+.nav button.active .ico{color:#356ad4}
+.sidefoot{display:flex;align-items:center;gap:11px;margin-top:auto;padding:18px 11px 3px;border-top:1px solid #e9eef5;font-size:11px}
+.sidefoot-icon{width:35px;height:35px;display:grid;place-items:center;border-radius:10px;background:#eff8f4;color:#18916c;flex:none}
+.sidefoot-icon svg{width:18px;height:18px}
+.sidefoot strong{display:block;color:#43536b;font-size:11px;margin-bottom:5px}
+.sidefoot-state{display:flex;align-items:center;gap:6px;color:#74839b;font-size:10.5px}
+.sidefoot .dot{width:6px;height:6px;box-shadow:none}
+.topbar{height:76px;padding:0 36px;gap:20px;background:#fff;border-bottom:1px solid #e7edf5;position:relative;z-index:10}
+.topbar-left{display:flex;flex-direction:column;gap:5px;min-width:0}
+.topbar-location{display:flex;align-items:center;gap:9px;font-size:12px;color:#8a99ad;white-space:nowrap}
+.topbar-location strong{color:#243954;font-size:13px;font-weight:690;overflow:hidden;text-overflow:ellipsis}
+.topbar-section{width:20px;height:20px;color:#5c79ac;display:inline-grid;place-items:center}
+.topbar-section svg{width:17px;height:17px}
+.topbar-chevron{width:14px;height:14px;display:inline-grid;place-items:center;color:#bac7d8}
+.topbar-chevron svg{width:14px;height:14px}
+.topbar-context{padding-left:29px;color:#a0adbd;font-size:10.5px}
+.topright{gap:18px;flex-shrink:0}
+.server-pill{display:inline-flex;align-items:center;gap:9px;padding:9px 13px;background:#f7f9fd;border:1px solid #edf1f6;border-radius:10px;font-size:11px;color:#4d617b;font-weight:620;white-space:nowrap}
+.server-status-dot{width:7px;height:7px;border-radius:50%;background:#22ad83;box-shadow:0 0 0 3px #e5f6ee}
+.header-separator{height:28px;width:1px;background:#e8edf4}
+.account-menu{position:relative}
+.account-menu summary{list-style:none}
+.account-menu summary::-webkit-details-marker{display:none}
+.account-trigger{display:flex;align-items:center;gap:10px;cursor:pointer;border-radius:11px;padding:5px 7px;border:1px solid transparent;user-select:none}
+.account-trigger:hover,.account-menu[open] .account-trigger{background:#f6f8fc;border-color:#e9eef5}
+.account-avatar{height:35px;width:35px;display:grid;place-items:center;background:#e9efff;border:1px solid #dce5f9;color:#315fc0;border-radius:11px;font-size:11px;font-weight:800;letter-spacing:.5px}
+.account-copy{display:flex;flex-direction:column;gap:3px;min-width:78px}
+.account-copy strong{color:#283a53;font-size:12px;font-weight:720}
+.account-copy small{font-size:10px;color:#92a0b3}
+.account-chevron{height:14px;width:14px;color:#8395ae}
+.account-chevron svg{height:14px;width:14px}
+.account-dropdown{position:absolute;right:0;top:calc(100% + 11px);width:222px;padding:7px;background:#fff;border:1px solid #e1e9f3;border-radius:13px;box-shadow:0 18px 45px #1d365024;z-index:30}
+.account-dropdown-heading{display:flex;flex-direction:column;gap:5px;padding:12px 12px 13px;margin-bottom:5px;border-bottom:1px solid #edf1f6}
+.account-dropdown-heading strong{color:#253b59;font-size:12px}
+.account-dropdown-heading small{color:#8c9bb1;font-size:10px}
+.account-menu-action{width:100%;display:flex;align-items:center;gap:11px;text-align:left;padding:11px;color:#455a75;background:transparent;font-size:12px;border:0;border-radius:8px;font-weight:580}
+.account-menu-action svg{height:17px;width:17px}
+.account-menu-action:hover{background:#f3f7fd;color:#315fc0}
+.account-menu-action.danger{color:#b34c4c}
+.account-menu-action.danger:hover{background:#fff2f2;color:#a72e2e}
+@media(max-width:900px){.topbar{padding:0 20px}.sidebar{width:225px}.topright{gap:10px}.account-copy{min-width:0}}
+@media(max-width:720px){
+ .sidebar{width:100%;height:auto;max-height:none;padding:12px 14px;overflow-x:auto}
+ .sidebar>.brand{border:0;padding:0 0 8px;min-height:0;margin:0}
+ .nav-label,.nav-admin-label,.sidefoot{display:none!important}
+ .nav{flex-direction:row;gap:5px;overflow-x:auto}
+ .nav button{min-height:39px;padding:9px 11px;white-space:nowrap}
+ .topbar{height:66px;padding:0 15px}
+ .topbar-context{display:none}
+ .topbar-root,.topbar-chevron,.header-separator,.server-pill,.account-copy,.account-chevron{display:none!important}
+ .topbar-location{gap:6px}
+ .topbar-location strong{font-size:12px}
+ .account-trigger{padding:3px}
+ .account-dropdown{right:0}
+}
 </style>
 </head>
 <body>
@@ -183,22 +251,43 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div>
 <div class="nav-label">Workspace</div>
 <nav class="nav">
-<button data-tab="dashboard" class="active"><span class="ico">▦</span>Visão geral</button>
-<button data-tab="projects"><span class="ico">◇</span>Aplicações</button>
-<button data-tab="pm2"><span class="ico">◉</span>Processos PM2</button>
-<button data-tab="docker"><span class="ico">▤</span>Containers</button>
-<button data-tab="databases"><span class="ico">◈</span>Bancos de Dados</button>
-<button data-tab="ports"><span class="ico">⇄</span>Portas de rede</button>
-<button data-tab="terminal"><span class="ico">⌘</span>Terminal</button>
-<div class="nav-label admin-nav hide" style="padding-top:24px">Administração</div>
-<button data-tab="users" class="admin-nav hide"><span class="ico">♧</span>Usuários</button>
-<button data-tab="audit" class="admin-nav hide"><span class="ico">☷</span>Auditoria</button>
-<button data-tab="settings" class="admin-nav hide"><span class="ico">⚙</span>Configurações</button>
+<button data-tab="dashboard" class="active"><span class="ico" data-icon="layout-dashboard" aria-hidden="true"></span>Visão geral</button>
+<button data-tab="projects"><span class="ico" data-icon="layers-3" aria-hidden="true"></span>Aplicações</button>
+<button data-tab="pm2"><span class="ico" data-icon="activity" aria-hidden="true"></span>Processos PM2</button>
+<button data-tab="docker"><span class="ico" data-icon="boxes" aria-hidden="true"></span>Containers</button>
+<button data-tab="databases"><span class="ico" data-icon="database" aria-hidden="true"></span>Bancos de Dados</button>
+<button data-tab="ports"><span class="ico" data-icon="network" aria-hidden="true"></span>Portas de rede</button>
+<button data-tab="terminal"><span class="ico" data-icon="terminal" aria-hidden="true"></span>Terminal</button>
+<div class="nav-label admin-nav hide nav-admin-label">Administração</div>
+<button data-tab="users" class="admin-nav hide"><span class="ico" data-icon="users-round" aria-hidden="true"></span>Usuários</button>
+<button data-tab="audit" class="admin-nav hide"><span class="ico" data-icon="clipboard-list" aria-hidden="true"></span>Auditoria</button>
+<button data-tab="settings" class="admin-nav hide"><span class="ico" data-icon="settings-2" aria-hidden="true"></span>Configurações</button>
 </nav>
-<div class="sidefoot"><div class="online"><span class="dot"></span><span>Servidor conectado</span></div><div class="muted small" style="margin-top:9px">Single-server · Frost</div></div>
+<div class="sidefoot"><div class="sidefoot-icon" data-icon="shield-check" aria-hidden="true"></div><div><strong>Ambiente operacional</strong><div class="sidefoot-state"><span class="dot"></span>Servidor conectado</div></div></div>
 </aside>
 <div class="main">
-<header class="topbar"><div class="breadcrumb">Servidor <span style="color:#53667e">/</span> <span id="crumb">Visão geral</span></div><div class="topright"><span id="hostname" class="muted small">Linux</span><span id="sessionUser" class="muted small"></span><span class="avatar">LM</span><button class="subtle" id="logout">Sair</button></div></header>
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-location"><span class="topbar-section" data-icon="server" aria-hidden="true"></span><span class="topbar-root">Servidor</span><span data-icon="chevron-right" class="topbar-chevron" aria-hidden="true"></span><strong id="crumb">Visão geral</strong></div>
+    <div class="topbar-context">Painel de gerenciamento</div>
+  </div>
+  <div class="topright">
+    <div class="server-pill" title="Servidor conectado"><span class="server-status-dot"></span><span id="hostname">Linux</span></div>
+    <div class="header-separator" aria-hidden="true"></div>
+    <details class="account-menu" id="accountMenu">
+      <summary class="account-trigger" aria-label="Abrir menu da conta">
+        <span class="account-avatar" id="accountAvatar">LM</span>
+        <span class="account-copy"><strong id="sessionUser">Usuário</strong><small id="sessionRole">Conta</small></span>
+        <span class="account-chevron" data-icon="chevron-down" aria-hidden="true"></span>
+      </summary>
+      <div class="account-dropdown">
+        <div class="account-dropdown-heading"><strong id="accountMenuName">Usuário</strong><small id="accountMenuRole">Sessão ativa</small></div>
+        <button type="button" class="account-menu-action" id="accountSettings"><span data-icon="settings-2"></span>Configurações</button>
+        <button type="button" class="account-menu-action danger" id="logout"><span data-icon="log-out"></span>Sair do painel</button>
+      </div>
+    </details>
+  </div>
+</header>
 <div class="content">
 <section id="dashboard">
 <div class="heading"><div><h1>Visão geral</h1><p>Acompanhe o estado e os recursos do seu servidor em tempo real.</p></div><button class="ghost" id="refresh">↻ Atualizar</button></div>
