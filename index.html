@@ -510,7 +510,10 @@ async function loadPM2(){
   for(const p of processes){
    const tr=document.createElement("tr");
    const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",(p.monit?.cpu??0)+"%",((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
-   fields.forEach((value,i)=>{const td=document.createElement("td");td.textContent=String(value);if(i===0)td.style.fontWeight="650";tr.append(td)});
+   fields.forEach((value,i)=>{const td=document.createElement("td");
+    if(i===1){const tag=document.createElement("span");tag.className="status "+(value==="online"?"":"off");tag.textContent=String(value);td.append(tag)}
+    else{td.textContent=String(value);if(i===0)td.style.fontWeight="650"}
+    tr.append(td)});
    const td=document.createElement("td"),actions=document.createElement("div");actions.className="pm2-acts";
    for(const [label,action] of [["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
     const button=document.createElement("button");button.type="button";button.className="ghost";button.textContent=label;
