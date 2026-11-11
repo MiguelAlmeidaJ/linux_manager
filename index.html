@@ -194,7 +194,7 @@ async function fetchEditor(){
  if(editorDirty()&&!confirm("Descartar alterações não salvas e recarregar o .env?"))return;
  try{
   editorStatus.textContent="Carregando...";
-  const data=await api(path+"/env/document");
+  const data=await api(path+"/env/document/open","POST",{});
   editorRevision=data.revision;
   editorOriginal=data.content;
   editorText.value=data.content;
