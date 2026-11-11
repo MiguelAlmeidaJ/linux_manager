@@ -28,7 +28,7 @@ services:
     environment:
       REDISCLI_AUTH: ${REDIS_PASSWORD:?missing-redis-password}
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$REDIS_PASSWORD\" ping | grep -q PONG"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 3s
       retries: 10
