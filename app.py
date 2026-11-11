@@ -590,7 +590,7 @@ def project_env_example(name: str, request: Request):
     _, path = get_project(name)
     return dj.example_env_keys(path, dj.read_env(ROOT, name))
 
-@app.get("/api/projects/{name}/env/document")
+@app.post("/api/projects/{name}/env/document/open")
 def project_env_document(name: str, request: Request):
     assert_auth(request)
     require_secure_database_admin(request)
