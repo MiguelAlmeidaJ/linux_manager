@@ -348,3 +348,24 @@ Em **Aplicações → Variáveis .env → Editar .env completo**, o administrado
 Ao salvar, o Linux Manager valida a sintaxe, impede variáveis duplicadas e nomes reservados, preserva os segredos que não foram alterados, atualiza o cofre privado e sincroniza o `.env` físico do projeto com permissão `0600`. Remover uma linha remove a variável correspondente. O sistema detecta conflitos de edição através de uma revisão SHA-256 e pede recarga quando outra sessão salvou primeiro. Um `.env` preexistente não gerenciado pelo painel nunca é sobrescrito.
 
 A abertura utiliza requisição POST autenticada, com verificação de origem HTTPS/TLS pelo proxy confiável e resposta `Cache-Control: no-store`. Não devolva conteúdo de `.env` em logs, mensagens de erro ou capturas de tela. O navegador recebe os valores apenas após a ação explícita **Editar .env completo**. Após alterar o `.env`, execute um novo deploy para aplicar as mudanças às aplicações em execução, incluindo variáveis `NEXT_PUBLIC_*` compiladas pelo Next.js.
+
+## Interface Frost e remoção segura de aplicações
+
+A interface padrão agora utiliza branco-gelo, superfície branca, navegação clara, controles discretos e acento azul. A página **Aplicações** mostra ações principais (Deploy, Terminal, Variáveis .env, Configurar), agrupando Git, processos e logs em **Mais ações**. O console de resultados permanece recolhido até haver uma operação. Isso altera a apresentação, não os processos ou configurações de deploy existentes.
+
+**Remover aplicação:** em **Aplicações → Mais ações → Remover aplicação**, digite o nome exato da aplicação e confirme. O endpoint POST /api/projects/{name}/remove verifica autenticação, HTTPS via Traefik confiável ou túnel SSH, confirma o nome e recusa exclusão durante deploy. Para projetos PM2, encerra somente os processos associados ao diretório da aplicação e arquiva o código e as variáveis em /srv/linux-manager/archived-projects/NOME-TIMESTAMP-IDENTIFICADOR (permissões restritas), removendo em seguida o registro no painel. O catálogo de bancos, seus dados e volumes Docker **não são alterados**. O arquivo é recuperável manualmente pelo administrador.
+
+Projetos do tipo Docker são **recusados** nesta versão para não deixar serviços/volumes em estados inesperados. Pare-os e investigue-os manualmente antes de implementar o fluxo de remoção de containers. A remoção do painel não exclui repositórios GitHub, bancos ou backups. **Não remova manualmente a pasta de arquivos arquivados antes de avaliar a necessidade de restauração.**
+
+### Atualização
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python3 -m py_compile app.py deploy_jobs.py
+exit
+sudo systemctl restart linux-manager
+```
+
+Atualize o navegador com Ctrl+Shift+R. O deploy e a inicialização das aplicações em PM2 não precisam ser refeitos para aplicar apenas esta atualização visual.
