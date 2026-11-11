@@ -180,8 +180,52 @@ const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(f
 form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);await operation(path+"/config","PUT",o);cfg.classList.add("hide")};
 card.append(cfg);
 const envPanel=document.createElement("div");envPanel.className="hide";envPanel.style.marginTop="18px";
-envPanel.innerHTML='<div class="divider"></div><h3>Variáveis de ambiente</h3><p class="help">O painel mantém o cofre privado e sincroniza um arquivo .env (permissões 600) na raiz do projeto. Valores nunca são devolvidos pela API. Alterações em aplicações rodando exigem novo deploy.</p><div class="small muted" data-envkeys>Carregando...</div><div class="actions" style="margin:12px 0"><button type="button" class="ghost" data-sync-env>Criar / sincronizar .env do projeto</button><span class="small muted" data-sync-status style="align-self:center">Arquivo privado na raiz do projeto</span></div><div style="margin:14px 0"><button type="button" class="ghost" data-import-example>Carregar variáveis do .env.example</button><p class="help">Lê os nomes do arquivo do repositório sem copiar senhas ou valores de exemplo. Clique numa variável pendente para configurá-la.</p><div data-example-list class="hide" style="margin-top:12px"></div></div><form class="formgrid" style="margin-top:15px"><label class="field">Nome da variável<input name="key" placeholder="DATABASE_URL" required></label><label class="field">Valor<input name="value" type="password" placeholder="Novo valor" required autocomplete="off"></label><div class="wide actions"><button>Salvar variável</button><button type="button" class="ghost" data-remove>Excluir chave</button></div></form>';
+envPanel.innerHTML='<div class="divider"></div><h3>Variáveis de ambiente</h3><p class="help">O painel mantém o cofre privado e sincroniza um arquivo .env (permissões 600) na raiz do projeto. Valores nunca são devolvidos pela API. Alterações em aplicações rodando exigem novo deploy.</p><div class="small muted" data-envkeys>Carregando...</div><div class="actions" style="margin:14px 0"><button type="button" data-open-env-editor>Editar .env completo</button><span class="small muted" style="align-self:center">Editor de texto · todas as variáveis do projeto</span></div><div class="hide" data-env-editor style="background:#0c1421;border:1px solid #31425b;border-radius:12px;padding:16px;margin:12px 0 22px"><div class="section-top"><div><h3 style="margin-bottom:5px">Editor .env · '+esc(p.name)+' </h3><p class="help">Conteúdo confidencial. Não compartilhe capturas nem copie senhas para outros sites. Uma variável por linha, formato NOME=valor.</p></div><button type="button" class="ghost" data-close-editor>Fechar</button></div><textarea data-env-content rows="20" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Editor do arquivo .env" style="width:100%;min-height:360px;resize:vertical;background:#080f1a;border:1px solid #30415b;border-radius:10px;color:#c6e4f3;padding:18px;font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2"></textarea><div class="actions" style="margin-top:12px;align-items:center"><button type="button" data-save-env-document>Salvar alterações</button><button type="button" class="ghost" data-reload-env-document>Recarregar</button><span class="small muted" data-env-editor-status>Pronto para editar.</span></div><p class="help" style="margin-top:10px">O salvamento atualiza o cofre privado e o .env físico. Para aplicar alterações aos processos, faça novo deploy. Linhas removidas também excluem variáveis.</p></div><div class="actions" style="margin:12px 0"><button type="button" class="ghost" data-sync-env>Criar / sincronizar .env do projeto</button><span class="small muted" data-sync-status style="align-self:center">Arquivo privado na raiz do projeto</span></div><div style="margin:14px 0"><button type="button" class="ghost" data-import-example>Carregar variáveis do .env.example</button><p class="help">Lê os nomes do arquivo do repositório sem copiar senhas ou valores de exemplo. Clique numa variável pendente para configurá-la.</p><div data-example-list class="hide" style="margin-top:12px"></div></div><form class="formgrid" style="margin-top:15px"><label class="field">Nome da variável<input name="key" placeholder="DATABASE_URL" required></label><label class="field">Valor<input name="value" type="password" placeholder="Novo valor" required autocomplete="off"></label><div class="wide actions"><button>Salvar variável</button><button type="button" class="ghost" data-remove>Excluir chave</button></div></form>';
 const envForm=envPanel.querySelector("form");
+
+const editor=envPanel.querySelector("[data-env-editor]");
+const editorText=envPanel.querySelector("[data-env-content]");
+const editorStatus=envPanel.querySelector("[data-env-editor-status]");
+let editorRevision=null;
+let editorOriginal="";
+function editorDirty(){return editorRevision!==null&&editorText.value!==editorOriginal}
+editorText.oninput=()=>{editorStatus.textContent=editorDirty()?"Alterações não salvas":"Sem alterações"};
+async function fetchEditor(){
+ if(editorDirty()&&!confirm("Descartar alterações não salvas e recarregar o .env?"))return;
+ try{
+  editorStatus.textContent="Carregando...";
+  const data=await api(path+"/env/document");
+  editorRevision=data.revision;
+  editorOriginal=data.content;
+  editorText.value=data.content;
+  editorStatus.textContent=data.keys+" variáveis carregadas · conteúdo confidencial";
+ }catch(e){editorStatus.textContent="Não foi possível abrir o editor";failure(e)}
+}
+envPanel.querySelector("[data-open-env-editor]").onclick=async()=>{
+ if(editor.classList.contains("hide")){editor.classList.remove("hide");await fetchEditor();editorText.focus()}
+ else if(!editorDirty()||confirm("Fechar o editor e descartar alterações?")){editor.classList.add("hide");editorText.value="";editorOriginal="";editorRevision=null}
+};
+envPanel.querySelector("[data-close-editor]").onclick=()=>{
+ if(editorDirty()&&!confirm("Descartar alterações não salvas?"))return;
+ editor.classList.add("hide");editorText.value="";editorOriginal="";editorRevision=null;
+};
+envPanel.querySelector("[data-reload-env-document]").onclick=fetchEditor;
+envPanel.querySelector("[data-save-env-document]").onclick=async()=>{
+ if(editorRevision===null){notify("Carregue o documento antes de salvar");return}
+ if(!editorDirty()){notify("Nenhuma alteração para salvar");return}
+ const button=envPanel.querySelector("[data-save-env-document]");
+ button.disabled=true;
+ try{
+  const data=await api(path+"/env/document","PUT",{content:editorText.value,revision:editorRevision});
+  editorRevision=data.revision;
+  await fetchEditor();
+  await displayKeys();
+  if(!exampleList.classList.contains("hide"))await showEnvExample();
+  notify(".env e cofre atualizados. Faça deploy para aplicar.");
+ }catch(e){editorStatus.textContent="Não foi possível salvar. Verifique a mensagem e revise o documento.";failure(e)}
+ finally{button.disabled=false}
+};
+
 envPanel.querySelector("[data-sync-env]").onclick=async()=>{
  const button=envPanel.querySelector("[data-sync-env]");
  button.disabled=true;
