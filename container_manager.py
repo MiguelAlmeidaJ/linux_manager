@@ -6,6 +6,7 @@ Unmanaged containers are *read-only* in the UI. No arbitrary image execution.
 import json
 import re
 import subprocess
+import socket
 from urllib.parse import quote
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -97,7 +98,12 @@ def manage(service: str, action: str, confirmation: str = ""):
         if service in ("postgres", "mysql"):
             return dbm.start(service)
         with dbm.LOCK:
-            if dbm._occupied(6379) and not dbm.running("redis"):
+            try:
+                with socket.create_connection(("127.0.0.1", 6379), timeout=0.25):
+                    occupied = True
+            except OSError:
+                occupied = False
+            if occupied and not dbm.running("redis"):
                 raise HTTPException(409, "Porta 6379 ocupada por outro serviço; nenhuma alteração aplicada")
             dbm.compose("up", "-d", "redis", timeout=220)
         return {"service": service, "action": "start", "message": "Serviço Redis iniciado"}
