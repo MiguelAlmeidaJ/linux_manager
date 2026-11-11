@@ -162,13 +162,21 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 .branding-application-demo .brand{padding:0}
 .branding-application-demo .brand strong{color:#15263d}
 @media(max-width:850px){.branding-grid{grid-template-columns:1fr}}
+
+/* Complete horizontal brand images replace icon AND wordmark together. */
+.brand{min-width:0}
+.brand-default{display:flex;align-items:center;gap:12px;min-width:0}
+.brand-full-image{display:block;width:100%;max-width:195px;height:56px;object-fit:contain;object-position:left center;flex-shrink:1}
+.login .brand-full-image{max-width:245px;height:76px}
+.branding-application-demo .brand-full-image{max-width:245px;height:74px}
+@media(max-width:720px){.brand-full-image{height:44px;max-width:165px}}
 </style>
 </head>
 <body>
-<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo"><span class="default-brand-glyph">⌘</span><img class="custom-brand-logo hide" alt="Logo Linux Manager"></div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
+<div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
 <div class="shell hide" id="app">
 <aside class="sidebar">
-<div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div>
+<div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div>
 <div class="nav-label">Workspace</div>
 <nav class="nav">
 <button data-tab="dashboard" class="active"><span class="ico">▦</span>Visão geral</button>
@@ -249,7 +257,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <article class="branding-item"><div class="branding-visual"><div id="brandingLogoPreview" class="branding-preview-logo"><span>⌘ Linux Manager</span></div></div><div class="branding-title"><h3>Logo do sistema</h3><span class="small muted">Recomendado: imagem horizontal ou quadrada</span></div><p class="help">PNG, JPEG ou WebP · até 1 MB. Para o melhor resultado, use uma logo com fundo transparente.</p><input type="file" id="brandingLogoInput" accept=".png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" aria-label="Selecionar logo"><div class="actions" style="margin-top:15px"><button type="button" id="brandingLogoSave">Salvar logo</button><button type="button" class="ghost" id="brandingLogoReset">Restaurar padrão</button></div></article>
 <article class="branding-item"><div class="branding-visual"><div id="brandingFaviconPreview" class="branding-preview-favicon"><span>⌘</span></div></div><div class="branding-title"><h3>Favicon</h3><span class="small muted">Ícone exibido na aba do navegador</span></div><p class="help">PNG, ICO ou WebP · até 1 MB. Recomendado: imagem quadrada de 32×32 ou 64×64 px.</p><input type="file" id="brandingFaviconInput" accept=".png,.ico,.webp,image/png,image/x-icon,image/webp" aria-label="Selecionar favicon"><div class="actions" style="margin-top:15px"><button type="button" id="brandingFaviconSave">Salvar favicon</button><button type="button" class="ghost" id="brandingFaviconReset">Restaurar padrão</button></div></article>
 </div></div>
-<div class="panel"><div class="section-top"><h2>Prévia da aplicação</h2><span class="badge">Identidade atual</span></div><div class="branding-application-demo"><div class="brand"><div class="brand-logo"><span class="default-brand-glyph">⌘</span><img class="custom-brand-logo hide" alt="Prévia da logo"></div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><div class="small muted">A identidade será compartilhada por todos os usuários e não altera seus projetos.</div></div></div>
+<div class="panel"><div class="section-top"><h2>Prévia da aplicação</h2><span class="badge">Identidade atual</span></div><div class="branding-application-demo"><div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div><div class="small muted">A identidade será compartilhada por todos os usuários e não altera seus projetos.</div></div></div>
 </section>
 <section id="terminal" class="hide"><div class="heading"><div><h1>Terminal</h1><p>Acesso à shell do usuário responsável pelos projetos.</p></div></div><div class="panel"><p class="small muted">O terminal deve ser usado apenas em conexão HTTPS confiável ou rede restrita.</p><div class="actions" style="margin-bottom:15px"><button id="connectTerminal">Conectar</button><button id="disconnectTerminal" class="ghost">Desconectar</button></div><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></div></section>
 <details id="operationPanel" class="panel operation-panel" style="margin-top:20px"><summary>Console de operações <span class="muted small">· abrir logs e resultados</span></summary><div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></details>
@@ -281,8 +289,11 @@ function setBrandImage(element,url){
 }
 function renderBrandingImages(){
  const logo=currentBranding.logo;
- document.querySelectorAll(".custom-brand-logo").forEach(img=>{img.classList.toggle("hide",!logo);if(logo)img.src=logo;else img.removeAttribute("src")});
- document.querySelectorAll(".default-brand-glyph").forEach(span=>span.classList.toggle("hide",Boolean(logo)));
+ document.querySelectorAll(".brand-full-image").forEach(img=>{
+  img.classList.toggle("hide",!logo);
+  if(logo)img.src=logo;else img.removeAttribute("src");
+ });
+ document.querySelectorAll(".brand-default").forEach(element=>element.classList.toggle("hide",Boolean(logo)));
  $("dynamicFavicon").href=currentBranding.favicon||DEFAULT_FAVICON;
  if($("brandingLogoPreview")){
   const value=brandDrafts.logo||logo;
