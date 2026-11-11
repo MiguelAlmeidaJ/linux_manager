@@ -171,9 +171,43 @@ card.innerHTML='<div class="proj-head"><div><div class="proj-name">◇ '+esc(p.n
 const controls=document.createElement("div");controls.className="proj-tools";
 function btn(title,cb,primary=false){const b=document.createElement("button");b.textContent=title;b.className=primary?"":"ghost";b.onclick=cb;controls.append(b)}
 const path="/projects/"+encodeURIComponent(p.name);
-btn("Configurar",()=>toggleConfig());btn("Terminal",()=>toggleProjectTerminal(),true);btn("Deploy",()=>operation(path+"/deploy"));
-btn("Git pull",()=>operation(path+"/pull"));btn("Atualizar + deploy",()=>operation(path+"/update-deploy"));btn("Variáveis .env",()=>toggleEnv());btn("Log de deploy",()=>watchJob(path));btn("Iniciar",()=>operation(path+"/process/start"));btn("Parar",()=>operation(path+"/process/stop"));btn("Reiniciar",()=>operation(path+"/process/restart"));btn("Logs",()=>operation(path+"/process/logs"));
+btn("Deploy",()=>operation(path+"/deploy"),true);
+btn("Terminal",()=>toggleProjectTerminal());
+btn("Variáveis .env",()=>toggleEnv());
+btn("Configurar",()=>toggleConfig());
+const more=document.createElement("button");more.type="button";more.className="ghost";more.textContent="⋯ Mais ações";more.setAttribute("aria-expanded","false");
+controls.append(more);
 card.append(controls);
+const advanced=document.createElement("div");advanced.className="project-advanced hide";
+const secondary=document.createElement("div");secondary.className="proj-tools-secondary";
+function secondaryButton(title,callback){const button=document.createElement("button");button.className="ghost";button.type="button";button.textContent=title;button.onclick=callback;secondary.append(button)}
+secondaryButton("Git pull",()=>operation(path+"/pull"));
+secondaryButton("Atualizar + deploy",()=>operation(path+"/update-deploy"));
+secondaryButton("Log de deploy",()=>watchJob(path));
+secondaryButton("Iniciar",()=>operation(path+"/process/start"));
+secondaryButton("Parar",()=>operation(path+"/process/stop"));
+secondaryButton("Reiniciar",()=>operation(path+"/process/restart"));
+secondaryButton("Logs PM2",()=>operation(path+"/process/logs"));
+advanced.append(secondary);
+const danger=document.createElement("details");danger.className="project-danger";
+danger.innerHTML='<summary>Remover aplicação</summary><p class="help">Encerra os processos PM2 exclusivos desta aplicação e remove seu cadastro. Código e variáveis serão arquivados no servidor para recuperação. Bancos de dados e volumes Docker não serão excluídos.</p><label class="field">Digite o nome exato da aplicação para confirmar<input data-confirm-name autocomplete="off" placeholder="'+esc(p.name)+'"></label><button type="button" class="delete-project-btn" data-remove-project disabled>Arquivar e remover aplicação</button>';
+const confirmInput=danger.querySelector("[data-confirm-name]");
+const removeButton=danger.querySelector("[data-remove-project]");
+confirmInput.oninput=()=>{removeButton.disabled=confirmInput.value!==p.name};
+removeButton.onclick=async()=>{
+ if(confirmInput.value!==p.name)return;
+ if(!confirm("Confirmar remoção de "+p.name+"? Os processos serão encerrados; arquivos e variáveis serão arquivados. Bancos e volumes serão mantidos."))return;
+ removeButton.disabled=true;
+ try{
+  const res=await api(path+"/remove","POST",{confirmation:p.name,archive:true});
+  result("Aplicação removida do painel. Arquivo de recuperação: "+res.archived_at+"\\nBancos e volumes preservados.");
+  notify("Aplicação removida e arquivada");
+  await loadProjects();
+ }catch(e){failure(e);removeButton.disabled=false}
+};
+advanced.append(danger);
+card.append(advanced);
+more.onclick=()=>{advanced.classList.toggle("hide");more.setAttribute("aria-expanded",String(!advanced.classList.contains("hide")));more.textContent=advanced.classList.contains("hide")?"⋯ Mais ações":"Fechar ações"};
 const cfg=document.createElement("div");cfg.className="hide";cfg.style.marginTop="20px";
 cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field">Modo de inicialização<select name="process_mode"><option value="command">Comando único / PM2</option><option value="ecosystem">PM2 ecosystem.config.cjs</option></select></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="pnpm install"></label><label class="field wide">Preparação (um comando por linha)<textarea name="prepare_command" rows="4" placeholder="docker compose up -d postgres&#10;pnpm db:generate&#10;pnpm --filter @aicorta/api exec prisma migrate deploy" style="width:100%;margin-top:8px;background:#0e1725;border:1px solid #2d3b51;border-radius:9px;color:#e5ecf7;padding:11px 12px;font:inherit"></textarea></label><label class="field wide">Comando de build<input name="build_command" placeholder="pnpm build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: instalação → preparação → build → PM2. Escolha ecosystem quando houver múltiplos processos no arquivo ecosystem.config.cjs. Docker usa Compose.</p></div></form>';
 const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});
@@ -291,8 +325,8 @@ function toggleProjectTerminal(){
  projectSocket.onerror=()=>notify("Não foi possível conectar o terminal da aplicação");
 }
 card.append(termPanel);el.append(card);
-function toggleConfig(){cfg.classList.toggle("hide");}
-function toggleEnv(){envPanel.classList.toggle("hide");if(!envPanel.classList.contains("hide"))displayKeys()}
+function toggleConfig(){cfg.classList.toggle("hide");if(!cfg.classList.contains("hide"))envPanel.classList.add("hide")}
+function toggleEnv(){envPanel.classList.toggle("hide");if(!envPanel.classList.contains("hide")){cfg.classList.add("hide");displayKeys()}}
 }
 }catch(e){failure(e)}}
 
