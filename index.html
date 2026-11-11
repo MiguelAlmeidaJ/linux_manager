@@ -215,7 +215,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
 async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
 function notify(msg){const el=$("toast");el.textContent=msg;el.classList.remove("hide");setTimeout(()=>el.classList.add("hide"),3500)}
-function cleanLog(value){return String(value??"").replace(/(?:\\x1b|\\uFFFD)\\[[0-9;?]*[ -/]*[@-~]/g,"").replace(/[\\u0000-\\u0008\\u000B-\\u001F\\u007F]/g,"")}
+function cleanLog(value){return String(value??"").replace(/(?:\x1b|\uFFFD)\[[0-9;?]*[ -/]*[@-~]/g,"").replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g,"")}
 function result(text){$("output").textContent=cleanLog(typeof text==="string"?text:JSON.stringify(text,null,2));$("operationPanel").open=true}
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
