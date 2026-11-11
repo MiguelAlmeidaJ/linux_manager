@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import unittest
 
-os.environ.setdefault("ADMIN_PASSWORD", "test-secret")
+os.environ.setdefault("ADMIN_PASSWORD", "test-password-of-at-least-12-chars")
 os.environ.setdefault("SESSION_SECRET", "test-only-secret-with-more-than-32-chars")
 import app
 
