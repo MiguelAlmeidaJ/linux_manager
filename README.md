@@ -446,3 +446,11 @@ sudo systemctl restart linux-manager
 ```
 
 Após atualizar a página com Ctrl+Shift+R, faça login como admin e abra **Configurações**. Se ainda não tiver uma imagem, o ícone padrão do Linux Manager continuará sendo mostrado.
+
+## Refinamento visual — navegação e cabeçalho
+
+O sidebar utiliza agora ícones SVG vetoriais consistentes, sem depender de fontes externas ou CDN, indicação ativa discreta, melhor hierarquia entre Workspace e Administração e um rodapé de estado compacto. O sidebar tem rolagem própria em telas baixas para não cortar Usuários, Auditoria ou Configurações. No celular, a navegação segue horizontal.
+
+O cabeçalho apresenta o caminho da página atual, servidor conectado, nome e função da conta e um menu de perfil com Configurações (somente admins) e Sair. Ícones dos indicadores do dashboard usam o mesmo sistema vetorial. Nenhuma alteração de banco, sessão ou regras de autorização foi necessária.
+
+Para atualizar: `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit`, `sudo systemctl restart linux-manager`. Em seguida faça Ctrl+Shift+R no navegador.
