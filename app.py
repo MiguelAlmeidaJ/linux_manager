@@ -25,14 +25,17 @@ import deploy_jobs as dj
 import github_ssh as ghssh
 import database_manager as dbm
 import container_manager as cm
+import identity_store as identities
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
 DATA_FILE = ROOT.parent / "linux-manager-projects.json"
 PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 SECRET = os.environ.get("SESSION_SECRET", "")
-if not PASSWORD or not SECRET or len(SECRET) < 32:
-    raise RuntimeError("Configure ADMIN_PASSWORD e SESSION_SECRET (mín. 32 caracteres).")
+if not SECRET or len(SECRET) < 32:
+    raise RuntimeError("Configure SESSION_SECRET (mín. 32 caracteres).")
+# ADMIN_PASSWORD is only used to seed the initial local admin, once.
+identities.init(PASSWORD)
 serializer = URLSafeTimedSerializer(SECRET, salt="linux-manager-session-v1")
 SECURE_COOKIE = os.environ.get("COOKIE_SECURE", "false").lower() == "true"
 TERMINAL_ENABLED = os.environ.get("TERMINAL_ENABLED", "false").lower() == "true"
@@ -89,22 +92,41 @@ def subprocess_env():
     return env
 
 
-def authorized(token):
+def session_actor(token):
     try:
-        return serializer.loads(token or "", max_age=12 * 3600) == "admin"
-    except BadSignature:
-        return False
+        identity = serializer.loads(token or "", max_age=12 * 3600)
+        if not isinstance(identity, dict) or not isinstance(identity.get("id"), int):
+            return None
+        row = identities.get_user(identity["id"])
+        if not row or not row["active"] or row["session_version"] != identity.get("version"):
+            return None
+        return row
+    except (BadSignature, ValueError, TypeError):
+        return None
+
+
+def authorized(token):
+    return session_actor(token) is not None
+
 
 def assert_auth(request: Request):
-    if not authorized(request.cookies.get("lm_session")):
+    actor = session_actor(request.cookies.get("lm_session"))
+    if not actor:
         raise HTTPException(401, "Não autenticado")
     origin = request.headers.get("origin")
     if origin:
         host = request.headers.get("host", "")
         parsed = urlparse(origin)
-        # Only same-origin browser requests may mutate the panel
         if parsed.netloc != host or parsed.scheme not in ("http", "https"):
             raise HTTPException(403, "Origem inválida")
+    return actor
+
+
+def assert_admin(request: Request):
+    actor = assert_auth(request)
+    if actor["role"] != "admin":
+        raise HTTPException(403, "Acesso restrito a administradores")
+    return actor
 
 def records():
     try:
@@ -143,6 +165,7 @@ def command(args, cwd=None, timeout=60, env_override=None):
     return output.strip()
 
 class Login(BaseModel):
+    username: str
     password: str
 
 class Project(BaseModel):
@@ -154,17 +177,22 @@ class Start(BaseModel):
     script: str = Field(default="index.js", min_length=1, max_length=240)
 
 @app.post("/api/login")
-def login(payload: Login):
-    if not hmac.compare_digest(payload.password.encode(), PASSWORD.encode()):
-        raise HTTPException(401, "Senha incorreta")
-    response = JSONResponse({"ok": True})
-    response.set_cookie("lm_session", serializer.dumps("admin"), httponly=True,
-                        samesite="strict", secure=SECURE_COOKIE, max_age=12 * 3600, path="/")
+def login(payload: Login, request: Request):
+    require_secure_database_admin(request)
+    actor = identities.authenticate(payload.username, payload.password, request.client.host if request.client else "")
+    identities.log(actor["id"], actor["username"], "auth.login", "session", 200,
+                   request.client.host if request.client else "")
+    response = JSONResponse({"ok": True, "username": actor["username"], "role": actor["role"]})
+    response.set_cookie("lm_session", serializer.dumps({"id": actor["id"], "version": actor["session_version"]}),
+                        httponly=True, samesite="strict", secure=SECURE_COOKIE, max_age=12 * 3600, path="/")
+    response.headers["Cache-Control"] = "no-store"
     return response
 
 @app.post("/api/logout")
 def logout(request: Request):
-    assert_auth(request)
+    actor = assert_auth(request)
+    identities.log(actor["id"], actor["username"], "auth.logout", "session", 200,
+                   request.client.host if request.client else "")
     response = JSONResponse({"ok": True})
     response.delete_cookie("lm_session", path="/")
     return response
@@ -176,7 +204,63 @@ def index():
 @app.get("/api/me")
 def me(request: Request):
     assert_auth(request)
-    return {"ok": True, "terminal": TERMINAL_ENABLED}
+    actor = session_actor(request.cookies.get("lm_session"))
+    return {"ok": True, "terminal": TERMINAL_ENABLED, "username": actor["username"],
+            "email": actor["email"], "role": actor["role"], "user_id": actor["id"]}
+
+@app.get("/api/users")
+def list_panel_users(request: Request):
+    assert_admin(request)
+    return identities.list_users()
+
+
+@app.post("/api/users")
+def create_panel_user(payload: identities.NewUser, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = identities.create_user(payload)
+    identities.log(actor["id"], actor["username"], "user.created",
+                   "user:" + str(result["id"]), 201, request.client.host if request.client else "")
+    return result
+
+
+@app.put("/api/users/{uid}")
+def update_panel_user(uid: int, payload: identities.EditUser, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = identities.edit_user(uid, payload, actor["id"])
+    identities.log(actor["id"], actor["username"], "user.updated",
+                   "user:" + str(uid), 200, request.client.host if request.client else "")
+    return result
+
+
+@app.get("/api/audit")
+def panel_audit(request: Request, limit: int = 100, offset: int = 0):
+    assert_admin(request)
+    return identities.list_audit(limit, offset)
+
+
+@app.middleware("http")
+async def audit_mutations(request: Request, call_next):
+    # Every authenticated state-changing API request gets metadata-only audit.
+    # Login/logout and user changes already use explicit events.
+    path = request.url.path
+    tracked = (path.startswith("/api/") and request.method in ("POST", "PUT", "PATCH", "DELETE")
+               and path not in ("/api/login", "/api/logout", "/api/users")
+               and not path.startswith("/api/users/"))
+    actor = session_actor(request.cookies.get("lm_session")) if tracked else None
+    try:
+        response = await call_next(request)
+    except Exception:
+        if actor:
+            identities.log(actor["id"], actor["username"], "api." + request.method.lower(),
+                           path, 500, request.client.host if request.client else "")
+        raise
+    if actor:
+        identities.log(actor["id"], actor["username"], "api." + request.method.lower(),
+                       path, response.status_code, request.client.host if request.client else "")
+    return response
+
 
 @app.get("/api/stats")
 def stats(request: Request):
