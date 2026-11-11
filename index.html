@@ -242,7 +242,36 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
  .account-trigger{padding:3px}
  .account-dropdown{right:0}
 }
-.metric-icon svg{width:18px;height:18px;display:block}.topbar-location svg,.sidefoot-icon svg{display:block}.nav button:focus-visible,.account-trigger:focus-visible,.account-menu-action:focus-visible{outline:2px solid #5d87df;outline-offset:2px}</style>
+.metric-icon svg{width:18px;height:18px;display:block}.topbar-location svg,.sidefoot-icon svg{display:block}.nav button:focus-visible,.account-trigger:focus-visible,.account-menu-action:focus-visible{outline:2px solid #5d87df;outline-offset:2px}
+/* Application overview: compact identity, responsive port inventory */
+.proj{padding:23px 25px;margin-top:15px}
+.proj-identity{display:flex;gap:13px;align-items:flex-start;min-width:0}
+.proj-icon{width:39px;height:39px;border:1px solid #dfe9f9;background:#edf4ff;border-radius:11px;color:#3267c7;display:grid;place-items:center;flex:none}
+.proj-icon svg{height:19px;width:19px}
+.proj-identity>div:last-child{min-width:0}
+.proj-name{font-size:16px;margin:1px 0 4px;letter-spacing:-.2px}
+.proj-url{font-size:11.5px;color:#7a8ea9;max-width:710px;word-break:break-word}
+.proj-branch{font-size:10.5px;color:#9aabc0;margin-top:5px}
+.proj-branch strong{color:#657b98;font-weight:650}
+.proj-grid{display:flex;gap:7px 24px;align-items:center;flex-wrap:wrap;background:transparent;border:0;border-bottom:1px solid #edf1f5;border-radius:0;margin:19px 0 0;padding:0 0 16px}
+.proj-grid>span{display:inline-flex;gap:7px;align-items:center;color:#7f90a6}
+.proj-grid strong{color:#31435c}
+.proj-endpoints{padding:17px 0 18px}
+.proj-endpoints-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#30465f;font-size:12px;margin-bottom:12px}
+.proj-endpoints-heading>span{display:flex;gap:9px;align-items:center}
+.proj-endpoints-heading svg{width:16px;height:16px;color:#7190bd}
+.proj-endpoints-heading small{color:#98a8bb;font-weight:450;font-size:10.5px}
+.proj-endpoints-list{display:flex;flex-wrap:wrap;gap:9px}
+.proj-endpoint{display:flex;align-items:center;flex-wrap:wrap;gap:7px;padding:9px 12px;border-radius:9px;border:1px solid #e1e9f2;background:#f8fafd;max-width:100%}
+.proj-endpoint>strong{font-size:13px;color:#234f97;font-variant-numeric:tabular-nums}
+.proj-endpoint-role{font-size:11px;color:#455c79;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proj-endpoint-bind{padding-left:8px;border-left:1px solid #dce5f0;font-size:10px;color:#7e90a5}
+.proj-endpoint.port-idle{background:#fbfbfd;border-style:dashed}
+.proj-endpoint.port-idle>strong{color:#64748b}
+.proj-port-help{margin:12px 0 0;font-size:10px;color:#9caaba;line-height:1.5}
+.proj-tools{border-top:1px solid #edf1f5;padding-top:17px;gap:9px}
+@media(max-width:750px){.proj{padding:18px}.proj-endpoints-heading{align-items:flex-start;flex-direction:column}.proj-endpoint{width:100%}.proj-endpoint-bind{margin-left:auto}.proj-grid{gap:10px 17px}}
+</style>
 </head>
 <body>
 <div id="login" class="loginwrap hide"><div class="panel login"><div class="brand login-brand"><img class="brand-full-image hide" alt="Logo do sistema"><div class="brand-default"><div class="brand-logo">⌘</div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
@@ -533,12 +562,35 @@ async function watchJob(base){
  }catch(e){failure(e)}
  finally{jobWatches.delete(base)}
 }
-const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,install_command:p.install_command??"",prepare_command:p.prepare_command??"",build_command:p.build_command??"",start_command:p.start_command??"",process_mode:p.process_mode||"command"});
+const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,additional_ports:p.additional_ports||[],install_command:p.install_command??"",prepare_command:p.prepare_command??"",build_command:p.build_command??"",start_command:p.start_command??"",process_mode:p.process_mode||"command"});
 async function loadProjects(){try{const [projects,status]=await Promise.all([api("/projects"),api("/projects/status")]);latestProjects=projects;latestStatus=status;const el=$("projectList");el.replaceChildren();
 if(!projects.length){el.className="empty";el.innerHTML='<span class="glyph">◇</span><strong>Nenhuma aplicação ainda</strong>Conecte seu primeiro repositório Git para começar.';return}el.className="";
 for(const p of projects){
 const state=status.find(s=>s.name===p.name)||{status:"offline"};const conf=confDefaults(p);const card=document.createElement("article");card.className="proj";
-card.innerHTML='<div class="proj-head"><div><div class="proj-name">◇ '+esc(p.name)+'</div><div class="proj-url">'+esc(p.repo)+' <span style="opacity:.6">· '+esc(p.branch)+'</span></div></div><span class="status '+(state.status==="online"?"":"off")+'">'+esc(state.status)+'</span></div><div class="proj-grid"><span>Runtime: <strong>'+esc(conf.runtime)+'</strong></span><span>Porta: <strong>'+esc(conf.port)+'</strong></span><span>PID: <strong>'+esc(state.pid||"—")+'</strong></span><span>Reinícios: <strong>'+esc(state.restarts||0)+'</strong></span>'+(conf.process_mode==="ecosystem"?'<span>Processos: <strong>'+esc(state.online_count??0)+'/'+esc(state.process_count??0)+' online</strong></span>':"")+'</div>';
+card.innerHTML='<div class="proj-head"><div class="proj-identity"><div class="proj-icon">'+iconSvg("layers-3")+'</div><div><div class="proj-name">'+esc(p.name)+'</div><div class="proj-url">'+esc(p.repo)+'</div><div class="proj-branch">Branch <strong>'+esc(p.branch||"main")+'</strong></div></div></div><span class="status '+(state.status==="online"?"":"off")+'">'+esc(state.status==="online"?"Em execução":state.status==="degraded"?"Atenção":state.status==="offline"?"Parado":state.status)+'</span></div><div class="proj-grid"><span>Runtime <strong>'+esc(conf.runtime==="node"?"Node.js / PM2":conf.runtime==="python"?"Python / PM2":"Docker")+'</strong></span><span>Processos <strong>'+esc(state.online_count??0)+'/'+esc(state.process_count??0)+' online</strong></span><span>Reinícios <strong>'+esc(state.restarts||0)+'</strong></span></div>';
+const endpoints=Array.isArray(state.endpoints)?state.endpoints:[];
+const panel=document.createElement("section");panel.className="proj-endpoints";
+const label=document.createElement("div");label.className="proj-endpoints-heading";
+label.innerHTML='<span>'+iconSvg("network")+' <strong>Portas e serviços</strong></span><small>'+endpoints.length+' porta(s) identificada(s)/configurada(s)</small>';
+panel.append(label);
+const list=document.createElement("div");list.className="proj-endpoints-list";
+if(!endpoints.length){const none=document.createElement("span");none.className="small muted";none.textContent="Nenhuma porta detectada. Configure portas adicionais ou inicie o processo.";list.append(none)}
+for(const endpoint of endpoints){
+ const pill=document.createElement("div");pill.className="proj-endpoint";
+ const main=Number(endpoint.port)===Number(conf.port);
+ const number=document.createElement("strong");number.textContent=String(endpoint.port);
+ const tag=document.createElement("span");tag.className="proj-endpoint-role";tag.textContent=main?"Principal":endpoint.process||"Adicional";
+ const detail=document.createElement("span");detail.className="proj-endpoint-bind";
+ if(!endpoint.listening)detail.textContent="Não detectada";
+ else if(endpoint.scope==="local")detail.textContent="Somente local · "+endpoint.address;
+ else detail.textContent="Escutando · "+endpoint.address;
+ pill.classList.toggle("port-idle",!endpoint.listening);
+ pill.append(number,tag,detail);list.append(pill)
+}
+panel.append(list);
+const footnote=document.createElement("p");footnote.className="proj-port-help";
+footnote.textContent="Portas em escuta não significam acesso externo. A disponibilidade depende do endereço de bind, do firewall e do proxy.";
+panel.append(footnote);card.append(panel);
 const controls=document.createElement("div");controls.className="proj-tools";
 function btn(title,cb,primary=false){const b=document.createElement("button");b.textContent=title;b.className=primary?"":"ghost";b.onclick=cb;controls.append(b)}
 const path="/projects/"+encodeURIComponent(p.name);
@@ -580,9 +632,9 @@ advanced.append(danger);
 card.append(advanced);
 more.onclick=()=>{advanced.classList.toggle("hide");more.setAttribute("aria-expanded",String(!advanced.classList.contains("hide")));more.textContent=advanced.classList.contains("hide")?"⋯ Mais ações":"Fechar ações"};
 const cfg=document.createElement("div");cfg.className="hide";cfg.style.marginTop="20px";
-cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field">Modo de inicialização<select name="process_mode"><option value="command">Comando único / PM2</option><option value="ecosystem">PM2 ecosystem.config.cjs</option></select></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="pnpm install"></label><label class="field wide">Preparação (um comando por linha)<textarea name="prepare_command" rows="4" placeholder="docker compose up -d postgres&#10;pnpm db:generate&#10;pnpm --filter @aicorta/api exec prisma migrate deploy" style="width:100%;margin-top:8px;background:#0e1725;border:1px solid #2d3b51;border-radius:9px;color:#e5ecf7;padding:11px 12px;font:inherit"></textarea></label><label class="field wide">Comando de build<input name="build_command" placeholder="pnpm build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: instalação → preparação → build → PM2. Escolha ecosystem quando houver múltiplos processos no arquivo ecosystem.config.cjs. Docker usa Compose.</p></div></form>';
-const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=v});
-form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);await operation(path+"/config","PUT",o);cfg.classList.add("hide")};
+cfg.innerHTML='<div class="divider"></div><h3>Configuração de deploy</h3><form class="formgrid"><label class="field">Runtime<select name="runtime"><option value="node">Node.js / PM2</option><option value="python">Python / PM2</option><option value="docker">Docker Compose</option></select></label><label class="field">Porta da aplicação<input name="port" type="number" min="1024" max="65535" required></label><label class="field wide">Portas adicionais (separadas por vírgula)<input name="additional_ports" type="text" placeholder="3001, 4000, 8080"><span class="help">Para API, WebSocket e serviços adicionais. O painel detecta as portas em escuta de cada processo PM2. Não modifica firewall ou Traefik.</span></label><label class="field">Modo de inicialização<select name="process_mode"><option value="command">Comando único / PM2</option><option value="ecosystem">PM2 ecosystem.config.cjs</option></select></label><label class="field wide">Comando de instalação<input name="install_command" placeholder="pnpm install"></label><label class="field wide">Preparação (um comando por linha)<textarea name="prepare_command" rows="4" placeholder="docker compose up -d postgres&#10;pnpm db:generate&#10;pnpm --filter @aicorta/api exec prisma migrate deploy" style="width:100%;margin-top:8px;background:#0e1725;border:1px solid #2d3b51;border-radius:9px;color:#e5ecf7;padding:11px 12px;font:inherit"></textarea></label><label class="field wide">Comando de build<input name="build_command" placeholder="pnpm build"></label><label class="field wide">Comando de inicialização<input name="start_command" placeholder="npm run start"></label><div class="wide"><button>Salvar configurações</button><p class="help">Node/Python: instalação → preparação → build → PM2. Escolha ecosystem quando houver múltiplos processos no arquivo ecosystem.config.cjs. Docker usa Compose.</p></div></form>';
+const form=cfg.querySelector("form");Object.entries(conf).forEach(([k,v])=>{if(form.elements[k])form.elements[k].value=Array.isArray(v)?v.join(", "):v});
+form.onsubmit=async e=>{e.preventDefault();const o=Object.fromEntries(new FormData(form));o.port=Number(o.port);const rawPorts=String(o.additional_ports||"").trim();o.additional_ports=rawPorts?rawPorts.split(",").map(v=>Number(v.trim())):[];if(o.additional_ports.some(port=>!Number.isInteger(port)||port<1024||port>65535)||new Set(o.additional_ports).size!==o.additional_ports.length){notify("Informe portas adicionais válidas e sem duplicação");return}await operation(path+"/config","PUT",o);cfg.classList.add("hide");await loadProjects()};
 card.append(cfg);
 const envPanel=document.createElement("div");envPanel.className="hide";envPanel.style.marginTop="18px";
 envPanel.innerHTML='<div class="divider"></div><h3>Variáveis de ambiente</h3><p class="help">O painel mantém o cofre privado e sincroniza um arquivo .env (permissões 600) na raiz do projeto. Valores nunca são devolvidos pela API. Alterações em aplicações rodando exigem novo deploy.</p><div class="small muted" data-envkeys>Carregando...</div><div class="actions" style="margin:14px 0"><button type="button" data-open-env-editor>Editar .env completo</button><span class="small muted" style="align-self:center">Editor de texto · todas as variáveis do projeto</span></div><div class="hide" data-env-editor style="background:#0c1421;border:1px solid #31425b;border-radius:12px;padding:16px;margin:12px 0 22px"><div class="section-top"><div><h3 style="margin-bottom:5px">Editor .env · '+esc(p.name)+' </h3><p class="help">Conteúdo confidencial. Não compartilhe capturas nem copie senhas para outros sites. Uma variável por linha, formato NOME=valor.</p></div><button type="button" class="ghost" data-close-editor>Fechar</button></div><textarea data-env-content rows="20" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Editor do arquivo .env" style="width:100%;min-height:360px;resize:vertical;background:#080f1a;border:1px solid #30415b;border-radius:10px;color:#c6e4f3;padding:18px;font:12px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace;tab-size:2"></textarea><div class="actions" style="margin-top:12px;align-items:center"><button type="button" data-save-env-document>Salvar alterações</button><button type="button" class="ghost" data-reload-env-document>Recarregar</button><span class="small muted" data-env-editor-status>Pronto para editar.</span></div><p class="help" style="margin-top:10px">O salvamento atualiza o cofre privado e o .env físico. Para aplicar alterações aos processos, faça novo deploy. Linhas removidas também excluem variáveis.</p></div><div class="actions" style="margin:12px 0"><button type="button" class="ghost" data-sync-env>Criar / sincronizar .env do projeto</button><span class="small muted" data-sync-status style="align-self:center">Arquivo privado na raiz do projeto</span></div><div style="margin:14px 0"><button type="button" class="ghost" data-import-example>Carregar variáveis do .env.example</button><p class="help">Lê os nomes do arquivo do repositório sem copiar senhas ou valores de exemplo. Clique numa variável pendente para configurá-la.</p><div data-example-list class="hide" style="margin-top:12px"></div></div><form class="formgrid" style="margin-top:15px"><label class="field">Nome da variável<input name="key" placeholder="DATABASE_URL" required></label><label class="field">Valor<input name="value" type="password" placeholder="Novo valor" required autocomplete="off"></label><div class="wide actions"><button>Salvar variável</button><button type="button" class="ghost" data-remove>Excluir chave</button></div></form>';
