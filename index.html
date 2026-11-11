@@ -269,6 +269,85 @@ function result(text){$("output").textContent=cleanLog(typeof text==="string"?te
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
 function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
+const DEFAULT_FAVICON=$("dynamicFavicon").getAttribute("href");
+let currentBranding={logo:null,favicon:null};
+let brandDrafts={logo:null,favicon:null};
+
+function setBrandImage(element,url){
+ element.replaceChildren();
+ if(!url){return}
+ const img=document.createElement("img");img.src=url;img.alt="Imagem da identidade visual";
+ element.append(img)
+}
+function renderBrandingImages(){
+ const logo=currentBranding.logo;
+ document.querySelectorAll(".custom-brand-logo").forEach(img=>{img.classList.toggle("hide",!logo);if(logo)img.src=logo;else img.removeAttribute("src")});
+ document.querySelectorAll(".default-brand-glyph").forEach(span=>span.classList.toggle("hide",Boolean(logo)));
+ $("dynamicFavicon").href=currentBranding.favicon||DEFAULT_FAVICON;
+ if($("brandingLogoPreview")){
+  const value=brandDrafts.logo||logo;
+  const element=$("brandingLogoPreview");
+  if(value)setBrandImage(element,value);else element.innerHTML="<span>⌘ Linux Manager</span>";
+ }
+ if($("brandingFaviconPreview")){
+  const value=brandDrafts.favicon||currentBranding.favicon;
+  const element=$("brandingFaviconPreview");
+  if(value)setBrandImage(element,value);else element.innerHTML="<span>⌘</span>";
+ }
+}
+async function loadBranding(){
+ try{currentBranding=await api("/branding");renderBrandingImages()}
+ catch(e){failure(e)}
+}
+async function readBrandingPreview(input,kind){
+ const file=input.files?.[0];
+ if(brandDrafts[kind]){URL.revokeObjectURL(brandDrafts[kind]);brandDrafts[kind]=null}
+ if(!file){renderBrandingImages();return}
+ if(file.size>1048576){input.value="";notify("Imagem maior que 1 MB");renderBrandingImages();return}
+ brandDrafts[kind]=URL.createObjectURL(file);
+ renderBrandingImages()
+}
+$("brandingLogoInput").onchange=()=>readBrandingPreview($("brandingLogoInput"),"logo");
+$("brandingFaviconInput").onchange=()=>readBrandingPreview($("brandingFaviconInput"),"favicon");
+async function saveBrandImage(kind){
+ const input=$(kind==="logo"?"brandingLogoInput":"brandingFaviconInput");
+ const file=input.files?.[0];
+ if(!file){notify("Selecione uma imagem para enviar");return}
+ if(file.size>1048576){notify("Tamanho máximo: 1 MB");return}
+ const button=$(kind==="logo"?"brandingLogoSave":"brandingFaviconSave");
+ button.disabled=true;
+ try{
+  const bytes=new Uint8Array(await file.arrayBuffer());
+  let binary="";
+  for(let offset=0;offset<bytes.length;offset+=8192){
+   binary+=String.fromCharCode(...bytes.subarray(offset,offset+8192))
+  }
+  const updated=await api("/admin/branding/"+kind,"PUT",
+                          {filename:file.name,content_base64:btoa(binary)});
+  currentBranding=updated;
+  input.value="";
+  if(brandDrafts[kind]){URL.revokeObjectURL(brandDrafts[kind]);brandDrafts[kind]=null}
+  renderBrandingImages();notify(kind==="logo"?"Logo atualizada":"Favicon atualizado")
+ }catch(e){failure(e)}
+ finally{button.disabled=false}
+}
+async function resetBrandImage(kind){
+ if(!confirm("Restaurar a "+(kind==="logo"?"logo":"favicon")+" padrão do Linux Manager?"))return;
+ const button=$(kind==="logo"?"brandingLogoReset":"brandingFaviconReset");
+ button.disabled=true;
+ try{
+  currentBranding=await api("/admin/branding/"+kind,"DELETE");
+  if(brandDrafts[kind]){URL.revokeObjectURL(brandDrafts[kind]);brandDrafts[kind]=null}
+  $(kind==="logo"?"brandingLogoInput":"brandingFaviconInput").value="";
+  renderBrandingImages();notify("Identidade padrão restaurada")
+ }catch(e){failure(e)}finally{button.disabled=false}
+}
+$("brandingLogoSave").onclick=()=>saveBrandImage("logo");
+$("brandingFaviconSave").onclick=()=>saveBrandImage("favicon");
+$("brandingLogoReset").onclick=()=>resetBrandImage("logo");
+$("brandingFaviconReset").onclick=()=>resetBrandImage("favicon");
+loadBranding();
+
 async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;currentRole=me.role;currentUsername=me.username;currentUserId=me.user_id;$("sessionUser").textContent=me.username;document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"||active==="settings"))active="dashboard";mainView();await refresh()}catch{loginView()}}
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{username:$("loginUsername").value.trim(),password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("logout").onclick=async()=>{try{await api("/logout","POST")}catch{}disconnect();loginView()};
