@@ -26,6 +26,7 @@ import github_ssh as ghssh
 import database_manager as dbm
 import container_manager as cm
 import identity_store as identities
+import branding
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -285,6 +286,41 @@ async def audit_mutations(request: Request, call_next):
         identities.log(actor["id"], actor["username"], audit_action(request.method, path),
                        path, response.status_code, request.client.host if request.client else "")
     return response
+
+
+@app.get("/api/branding")
+def branding_settings():
+    # Only public information: the optional image URLs (login must display branding).
+    return JSONResponse(branding.metadata(), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/branding/{kind}")
+def branding_image(kind: str):
+    path, mime = branding.asset(kind)
+    return FileResponse(path, media_type=mime,
+                        headers={"Cache-Control": "public, max-age=60",
+                                 "X-Content-Type-Options": "nosniff",
+                                 "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+
+@app.put("/api/admin/branding/{kind}")
+def branding_upload(kind: str, payload: branding.AssetUpload, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = branding.save(kind, payload)
+    identities.log(actor["id"], actor["username"], "branding.updated",
+                   "branding:" + kind, 200, request.client.host if request.client else "")
+    return result
+
+
+@app.delete("/api/admin/branding/{kind}")
+def branding_reset(kind: str, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = branding.reset(kind)
+    identities.log(actor["id"], actor["username"], "branding.restored",
+                   "branding:" + kind, 200, request.client.host if request.client else "")
+    return result
 
 
 @app.get("/api/stats")
