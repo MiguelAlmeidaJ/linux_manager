@@ -508,6 +508,12 @@ async def project_terminal_session(ws: WebSocket, cwd: Path):
     if not terminal_allowed(ws):
         await ws.close(code=1008)
         return
+    actor = session_actor(ws.cookies.get("lm_session"))
+    if not actor:
+        await ws.close(code=1008)
+        return
+    identities.log(actor["id"], actor["username"], "terminal.connected",
+                   "project:" + cwd.name, 101, ws.client.host if ws.client else "")
     await ws.accept()
     master, slave = pty.openpty()
     process = subprocess.Popen(
@@ -533,6 +539,8 @@ async def project_terminal_session(ws: WebSocket, cwd: Path):
     except (WebSocketDisconnect, OSError):
         pass
     finally:
+        identities.log(actor["id"], actor["username"], "terminal.disconnected",
+                       "project:" + cwd.name, 200, ws.client.host if ws.client else "")
         task.cancel()
         try:
             os.killpg(process.pid, signal.SIGTERM)
