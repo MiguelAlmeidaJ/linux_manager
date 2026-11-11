@@ -128,6 +128,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 @media(max-width:1100px){.content{padding:26px}.topbar{padding:0 26px}}
 @media(max-width:720px){.content{padding:20px 15px}.topbar{padding:0 16px}.proj{padding:18px}.proj-grid{gap:10px 17px}}
 
+.operation-panel{padding:14px 20px}.operation-panel>summary{cursor:pointer;color:#526781;font-size:12px;font-weight:650;user-select:none;list-style:revert}.operation-panel:not([open]){background:transparent;border-style:dashed;box-shadow:none}.operation-panel[open]>summary{color:#263a55}.operation-panel pre{margin-top:10px;max-height:240px}
 </style>
 </head>
 <body>
@@ -197,7 +198,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 </section>
 <section id="ports" class="hide"><div class="heading"><div><h1>Portas de rede</h1><p>Conexões TCP em escuta no servidor.</p></div><button class="ghost" id="reloadPorts">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Porta</th><th>Endereço</th><th>PID</th></tr></thead><tbody id="portsTable"></tbody></table></div></div></section>
 <section id="terminal" class="hide"><div class="heading"><div><h1>Terminal</h1><p>Acesso à shell do usuário responsável pelos projetos.</p></div></div><div class="panel"><p class="small muted">O terminal deve ser usado apenas em conexão HTTPS confiável ou rede restrita.</p><div class="actions" style="margin-bottom:15px"><button id="connectTerminal">Conectar</button><button id="disconnectTerminal" class="ghost">Desconectar</button></div><pre id="term"></pre><input id="termInput" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false"></div></section>
-<div class="panel" style="margin-top:20px"><div class="section-top"><h2>Console de operações</h2><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></div>
+<details id="operationPanel" class="panel operation-panel" style="margin-top:20px"><summary>Console de operações <span class="muted small">· abrir logs e resultados</span></summary><div class="actions" style="justify-content:flex-end;margin-top:12px"><button class="subtle" id="clearOutput">Limpar</button></div><pre id="output">Sistema pronto.</pre></details>
 </div>
 </div>
 </div>
@@ -209,7 +210,7 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
 async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
 function notify(msg){const el=$("toast");el.textContent=msg;el.classList.remove("hide");setTimeout(()=>el.classList.add("hide"),3500)}
-function result(text){$("output").textContent=typeof text==="string"?text:JSON.stringify(text,null,2)}
+function result(text){$("output").textContent=typeof text==="string"?text:JSON.stringify(text,null,2);$("operationPanel").open=true}
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
 function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
