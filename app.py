@@ -648,6 +648,7 @@ class AppConfig(BaseModel):
     start_command: str = Field(default="", max_length=400)
     prepare_command: str = Field(default="", max_length=2000)
     process_mode: Literal["command", "ecosystem"] = "command"
+    additional_ports: list[int] = Field(default_factory=list, max_length=20)
 
 def config_for(entry):
     return {
@@ -658,6 +659,7 @@ def config_for(entry):
         "start_command": entry.get("start_command", ""),
         "prepare_command": entry.get("prepare_command", ""),
         "process_mode": entry.get("process_mode", "command"),
+        "additional_ports": entry.get("additional_ports", []),
     }
 
 def run_step(step: str, path: Path, timeout: int = 240):
@@ -682,6 +684,12 @@ def run_step(step: str, path: Path, timeout: int = 240):
 def configure_project(name: str, payload: AppConfig, request: Request):
     assert_auth(request)
     get_project(name)
+    if len(set(payload.additional_ports)) != len(payload.additional_ports):
+        raise HTTPException(400, "Portas adicionais duplicadas")
+    if payload.port in payload.additional_ports:
+        raise HTTPException(400, "A porta principal não deve ser repetida nas portas adicionais")
+    if any(port < 1024 or port > 65535 for port in payload.additional_ports):
+        raise HTTPException(400, "Porta adicional fora do intervalo permitido")
     data = records()
     data[name].update(payload.model_dump())
     save(data)
@@ -794,12 +802,55 @@ def pm2_process_snapshot():
         return []
 
 
+def project_listeners(processes, configured_ports, listeners):
+    """Attribute listening TCP sockets to PM2 roots and their child processes.
+
+    Binding to 127.0.0.1 does not imply network availability. A configured
+    port without an owning socket is displayed as not detected, never open.
+    """
+    owned = {}
+    for p in processes:
+        pid = p.get("pid")
+        if not isinstance(pid, int) or pid <= 0:
+            continue
+        process_name = p.get("name") or "processo"
+        try:
+            proc = psutil.Process(pid)
+            children = proc.children(recursive=True)
+            for item in [proc, *children]:
+                owned[item.pid] = process_name
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            owned[pid] = process_name
+    by_port = {}
+    for conn in listeners:
+        if conn.status != psutil.CONN_LISTEN or not conn.laddr or conn.pid not in owned:
+            continue
+        port = conn.laddr.port
+        if not (1 <= port <= 65535):
+            continue
+        address = str(conn.laddr.ip)
+        scope = "local" if address in ("127.0.0.1", "::1") else "network"
+        item = {"port": port, "address": address, "scope": scope,
+                "process": owned[conn.pid], "listening": True}
+        by_port[(port, address)] = item
+    for port in configured_ports:
+        if not any(p == port for p, _ in by_port):
+            by_port[(port, "")] = {"port": port, "address": None,
+                                   "scope": "unknown", "process": None,
+                                   "listening": False}
+    return sorted(by_port.values(), key=lambda item: (item["port"], item["address"] or ""))[:40]
+
+
 @app.get("/api/projects/status")
 def project_status(request: Request):
     assert_auth(request)
     data = records()
     processes = pm2_process_snapshot()
     by_name = {p.get("name"): p for p in processes}
+    try:
+        listeners = psutil.net_connections(kind="tcp")
+    except (OSError, psutil.Error):
+        listeners = []
     result = []
     for name, entry in data.items():
         proc = by_name.get(f"lm-{name}")
@@ -819,8 +870,16 @@ def project_status(request: Request):
                 proc = matched[0]
         if conf["runtime"] == "docker":
             status = "docker"
+        requested_ports = [conf["port"], *conf["additional_ports"]]
+        if conf["runtime"] == "docker":
+            endpoints = [{"port": port, "address": None, "scope": "unknown",
+                          "process": None, "listening": False}
+                         for port in sorted(set(requested_ports))]
+        else:
+            endpoints = project_listeners(matched, requested_ports, listeners)
         result.append({
             "name": name, "runtime": conf["runtime"], "port": conf["port"],
+            "endpoints": endpoints,
             "status": status, "pid": (proc or {}).get("pid"),
             "restarts": sum(p.get("pm2_env", {}).get("restart_time", 0) or 0 for p in matched),
             "process_count": len(matched),
