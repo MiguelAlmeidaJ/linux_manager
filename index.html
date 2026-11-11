@@ -32,6 +32,102 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 .table-wrap{overflow-x:auto}
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.two{grid-template-columns:1fr}.content{padding:25px}.topbar{padding:0 25px}}
 @media(max-width:720px){.shell{display:block}.sidebar{position:static;width:100%;height:auto;padding:14px 18px}.brand{padding:0 0 14px}.nav-label,.sidefoot{display:none}.nav{flex-direction:row;overflow-x:auto}.nav button{white-space:nowrap;padding:9px}.topbar{height:58px;padding:0 17px}.content{padding:20px 15px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.metric{padding:15px}.metric-value{font-size:23px}.formgrid{grid-template-columns:1fr}.topright #hostname{display:none}}
+
+/* Linux Manager: Frost — neutral surfaces, restrained blue accent, clear hierarchy. */
+:root{
+  color-scheme:light;
+  --bg:#f4f7fb;--side:#ffffff;--card:#ffffff;--card2:#f8fafd;
+  --line:#e3eaf2;--text:#17253b;--muted:#687b95;--accent:#3567db;
+  --green:#169a71;--red:#c84343;
+  color:var(--text);background:var(--bg)
+}
+body{background:var(--bg);color:var(--text)}
+.shell{background:var(--bg)}
+.sidebar{background:#ffffff;box-shadow:1px 0 0 #ebeff5; border-right:1px solid #e9eef5}
+.brand-logo{background:#315fd0;box-shadow:none;border-radius:10px}
+.brand strong{color:#15263d}.brand small{color:#8a9bb1}
+.nav-label{color:#8696aa}
+.nav button{color:#64758b;font-weight:540}
+.nav button:hover{background:#f4f7fb;color:#203955;filter:none}
+.nav button.active{background:#eaf1ff;color:#2858b8;font-weight:680}
+.nav button.active .ico{color:#3567db}
+.sidefoot{border-color:var(--line)}
+.topbar{height:76px;background:#fff;border-bottom:1px solid var(--line);padding:0 40px}
+.breadcrumb{color:#73849a}
+.avatar{background:#edf3ff;border-color:#dce7ff;color:#2356ad;font-weight:700}
+.content{max-width:1440px;padding:36px 40px 55px}
+h1{color:#15243b;font-size:26px}h2{color:#1b2a42}h3{color:#24344d}
+.heading{margin-bottom:24px}.heading p,.muted,.metric-note{color:var(--muted)}
+.panel{background:#fff;border:1px solid #e2e9f2;border-radius:15px;box-shadow:0 3px 14px rgba(25,47,82,.025)}
+.metric-head{color:#687b95}.metric-icon{background:#eff4ff;border-color:#e2eaff;color:#4368c6}
+.metric-value,.sysvalue{color:#172940}
+.bar{background:#e9eef6}.bar span{background:#4877dd}
+.section-top{gap:15px}
+.systemrow{border-color:#e9eef5}.badge{background:#eef3fd;color:#4165a5}
+.empty{background:#fafcfe;border:1px dashed #d9e3ef;color:#7385a0}
+.empty .glyph{color:#83a4d9}.empty strong{color:#243650}
+.status{color:#415670;font-weight:620}.status:before{background:#25b58b}.status.off:before{background:#98a7b9}
+button{background:#386fdb;color:#fff;box-shadow:none;transition:background .15s,border-color .15s}
+button:hover{filter:none;background:#285dbb}
+button.ghost{background:#f4f7fb;border:1px solid #e0e8f2;color:#3f536c}
+button.ghost:hover{background:#eaf1fc;color:#2857ad}
+button.subtle{background:#fff;color:#536b89;border-color:#dfe7f1}
+button.subtle:hover{background:#f3f7fc}
+input,select,textarea,.field textarea{
+  background:#fff!important;color:#243651!important;
+  border:1px solid #dce5f0!important;border-radius:10px
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#7899df!important;box-shadow:0 0 0 3px #3b71d514}
+input::placeholder,textarea::placeholder{color:#96a5ba}
+.field{color:#5e718a}.help{color:#798ba2;line-height:1.6}
+.divider{background:var(--line)}
+.proj{
+  margin-top:16px;padding:24px 26px;background:#fff;
+  border:1px solid #e2e9f2;border-radius:16px;
+  box-shadow:0 4px 18px rgba(24,51,86,.032)
+}
+.proj-head{align-items:center}
+.proj-name{font-size:17px;letter-spacing:-.2px;color:#182a43}
+.proj-url{color:#8091a6;font-size:12px;line-height:1.5}
+.proj-grid{
+  background:#f7f9fc;border:1px solid #edf1f6;border-radius:9px;
+  margin:18px 0;padding:12px 15px;gap:15px 24px;color:#71839a;font-size:12px
+}
+.proj-grid strong{color:#263d59;font-weight:700}
+.proj-tools{border:0;padding:0;gap:9px;align-items:center}
+.proj-tools button{padding:10px 14px;font-size:12px}
+.project-advanced{
+  background:#f8fafd;border:1px solid #e8edf5;border-radius:12px;
+  padding:17px 18px;margin-top:15px
+}
+.proj-tools-secondary{display:flex;flex-wrap:wrap;gap:8px}
+.proj-tools-secondary button{font-size:12px;padding:9px 12px}
+.project-danger{margin-top:15px;border-top:1px solid #e0e7f0;padding-top:14px}
+.project-danger summary{cursor:pointer;color:#a83b3b;font-size:12px;font-weight:650;user-select:none}
+.project-danger .field{max-width:430px;margin:10px 0}
+.project-danger .help{max-width:720px;margin:10px 0}
+.delete-project-btn{background:#b63f45;color:#fff;margin-top:6px}
+.delete-project-btn:not(:disabled):hover{background:#9c3038}
+.project-danger input{border-color:#f0c9c9!important}
+.ssh-summary{padding:18px 22px}.ssh-summary:hover{background:#fafcfe;border-radius:15px}
+.ssh-content{padding:0 22px 22px}
+.ssh-chevron{color:#7086a0}
+#sshPanel{margin-bottom:22px!important}
+.table th{color:#8192a6}.table th,.table td{border-color:#e8edf5}
+.table td{color:#354963}
+.toast{background:#fff;color:#203853;border:1px solid #cedbed;box-shadow:0 12px 36px #244c8629}
+#output,pre,#term,.project-terminal{
+  background:#101d2e;color:#d6e8f8;border-color:#23354b;
+}
+#termInput{background:#fff!important}
+[data-env-editor]{background:#f7faff!important;border-color:#e1eaf5!important}
+[data-env-content]{background:#142235!important;color:#d8edfa!important;border-color:#2d4259!important;box-shadow:none!important}
+[data-env-content]:focus{border-color:#668cd0!important}
+#dbServices .panel{background:#fff}
+#dbList .proj{background:#fff}
+@media(max-width:1100px){.content{padding:26px}.topbar{padding:0 26px}}
+@media(max-width:720px){.content{padding:20px 15px}.topbar{padding:0 16px}.proj{padding:18px}.proj-grid{gap:10px 17px}}
+
 </style>
 </head>
 <body>
@@ -49,7 +145,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#b5c9dd;font:12px/1.65 ui-
 <button data-tab="ports"><span class="ico">⇄</span>Portas de rede</button>
 <button data-tab="terminal"><span class="ico">⌘</span>Terminal</button>
 </nav>
-<div class="sidefoot"><div class="online"><span class="dot"></span><span>Servidor conectado</span></div><div class="muted small" style="margin-top:9px">Single-server edition · v0.2</div></div>
+<div class="sidefoot"><div class="online"><span class="dot"></span><span>Servidor conectado</span></div><div class="muted small" style="margin-top:9px">Single-server · Frost</div></div>
 </aside>
 <div class="main">
 <header class="topbar"><div class="breadcrumb">Servidor <span style="color:#53667e">/</span> <span id="crumb">Visão geral</span></div><div class="topright"><span id="hostname" class="muted small">Linux</span><span class="avatar">LM</span><button class="subtle" id="logout">Sair</button></div></header>
