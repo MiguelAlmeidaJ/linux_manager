@@ -590,6 +590,27 @@ def project_env_example(name: str, request: Request):
     _, path = get_project(name)
     return dj.example_env_keys(path, dj.read_env(ROOT, name))
 
+@app.get("/api/projects/{name}/env/document")
+def project_env_document(name: str, request: Request):
+    assert_auth(request)
+    require_secure_database_admin(request)
+    get_project(name)
+    from fastapi.responses import JSONResponse
+    return JSONResponse(
+        dj.read_env_document(ROOT, name),
+        headers={"Cache-Control": "no-store, private", "Pragma": "no-cache",
+                 "X-Content-Type-Options": "nosniff"},
+    )
+
+
+@app.put("/api/projects/{name}/env/document")
+def project_env_document_update(name: str, payload: dj.EnvDocument, request: Request):
+    assert_auth(request)
+    require_secure_database_admin(request)
+    get_project(name)
+    return dj.write_env_document(ROOT, name, payload)
+
+
 @app.post("/api/projects/{name}/env/sync")
 def project_env_sync(name: str, request: Request):
     assert_auth(request)
