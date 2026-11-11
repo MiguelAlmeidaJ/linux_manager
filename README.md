@@ -454,3 +454,13 @@ O sidebar utiliza agora ícones SVG vetoriais consistentes, sem depender de font
 O cabeçalho apresenta o caminho da página atual, servidor conectado, nome e função da conta e um menu de perfil com Configurações (somente admins) e Sair. Ícones dos indicadores do dashboard usam o mesmo sistema vetorial. Nenhuma alteração de banco, sessão ou regras de autorização foi necessária.
 
 Para atualizar: `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit`, `sudo systemctl restart linux-manager`. Em seguida faça Ctrl+Shift+R no navegador.
+
+## Aplicações com múltiplas portas — visualização e configuração
+
+O cartão de **Aplicações** agora apresenta identidade do projeto, branch, estado PM2, métricas resumidas e a seção **Portas e serviços**. Para projetos PM2, o backend cruza o PID de cada processo e seus processos filhos com as conexões TCP em estado LISTEN do host. Assim, uma aplicação com frontend na porta 3000 e API na porta 3001 pode exibir ambas, identificando o processo responsável quando disponível. Portas não localizadas são sinalizadas como **Não detectada** (sem declarar que estejam liberadas).
+
+Em **Aplicações → Configurar**, o campo **Portas adicionais** aceita números separados por vírgula, por exemplo `3001, 8080`. Esse cadastro só informa ao painel quais portas devem aparecer, mesmo quando seus processos estiverem parados; não altera comandos do servidor, configurações do aplicativo, variáveis de ambiente, firewall ou Traefik. A porta principal continua sendo usada no deploy no modo comando único. Em modo PM2 ecosystem, cada serviço deve configurar sua própria porta, por exemplo `API_PORT=3001` e `WEB_PORT=3000`. O inventário de portas deve ser conferido depois de reiniciar os serviços.
+
+**Segurança:** `127.0.0.1:3001` significa somente local; `0.0.0.0:3001` significa que o processo escuta em todas as interfaces IPv4, não que a porta esteja liberada publicamente. Liberação por firewall e proxy são operações independentes e intencionais. Para Docker, as portas cadastradas aparecem como não detectadas neste painel; consulte a aba Containers para verificar o mapeamento real.
+
+Para atualizar: `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit`, `sudo systemctl restart linux-manager`, e atualize a página com Ctrl+Shift+R. Esta atualização não reinicia as aplicações PM2.
