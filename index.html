@@ -242,7 +242,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
  .account-trigger{padding:3px}
  .account-dropdown{right:0}
 }
-</style>
+.metric-icon svg{width:18px;height:18px;display:block}.topbar-location svg,.sidefoot-icon svg{display:block}.nav button:focus-visible,.account-trigger:focus-visible,.account-menu-action:focus-visible{outline:2px solid #5d87df;outline-offset:2px}</style>
 </head>
 <body>
 <div id="login" class="loginwrap hide"><div class="panel login"><div class="brand login-brand"><img class="brand-full-image hide" alt="Logo do sistema"><div class="brand-default"><div class="brand-logo">⌘</div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
@@ -377,6 +377,7 @@ const ICON_PATHS={
  "log-out":'<path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-6"/>',
  "shield-check":'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/>'
 };
+function iconSvg(name){const content=ICON_PATHS[name];return content?'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+content+'</svg>':''}
 function initializeIcons(){
  document.querySelectorAll("[data-icon]").forEach(node=>{
   const content=ICON_PATHS[node.dataset.icon];
@@ -495,8 +496,8 @@ if(page==="settings")loadBranding();if(page==="users")loadUsers();if(page==="aud
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
 async function refresh(){try{const [s,h,st]=await Promise.all([api("/stats"),api("/host"),api("/projects/status")]);latestStatus=st;$("hostname").textContent=s.hostname;const data=[
-["CPU","◴",s.cpu+"%",s.cpu,"Média 30s · atual "+s.cpu_instant+"%"],["Memória","▥",s.memory+"%",s.memory,bytes(s.memory_used)+" / "+bytes(s.memory_total)],["Disco","▤",s.disk+"%",s.disk,bytes(s.disk_used)+" / "+bytes(s.disk_total)],["Aplicações","◇",String(s.projects),0,st.filter(x=>x.status==="online").length+" processo(s) online"]];
-$("metrics").innerHTML=data.map(([label,icon,val,pct,note])=>'<div class="panel metric"><div class="metric-head"><span>'+label+'</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+val+'</div><div class="bar"><span style="width:'+pct+'%"></span></div><div class="metric-note">'+esc(note)+'</div></div>').join("");
+["CPU","activity",s.cpu+"%",s.cpu,"Média 30s · atual "+s.cpu_instant+"%"],["Memória","server",s.memory+"%",s.memory,bytes(s.memory_used)+" / "+bytes(s.memory_total)],["Disco","database",s.disk+"%",s.disk,bytes(s.disk_used)+" / "+bytes(s.disk_total)],["Aplicações","layers-3",String(s.projects),0,st.filter(x=>x.status==="online").length+" processo(s) online"]];
+$("metrics").innerHTML=data.map(([label,icon,val,pct,note])=>'<div class="panel metric"><div class="metric-head"><span>'+label+'</span><span class="metric-icon">'+iconSvg(icon)+'</span></div><div class="metric-value">'+val+'</div><div class="bar"><span style="width:'+pct+'%"></span></div><div class="metric-note">'+esc(note)+'</div></div>').join("");
 $("hostInfo").innerHTML=[["Host",h.hostname],["CPU",h.cpu_count+" núcleo(s)"],["Memória",bytes(h.memory_total)],["Uptime",time(h.uptime)],["Node.js",h.node_version],["PM2",h.pm2_version],["Docker",h.docker_version]].map(([a,b])=>'<div class="systemrow"><span class="muted">'+esc(a)+'</span><span class="sysvalue">'+esc(b)+'</span></div>').join("");
 $("summaryApps").className=st.length?"":"empty";$("summaryApps").innerHTML=st.length?st.slice(0,6).map(p=>'<div class="systemrow"><span>◇ '+esc(p.name)+' <span class="muted">:'+p.port+'</span></span><span class="status '+(p.status==="online"?"":"off")+'">'+esc(p.status)+'</span></div>').join(""):'<span class="glyph">◇</span><strong>Nenhuma aplicação cadastrada</strong>Cadastre seu primeiro repositório na aba Aplicações.';
 }catch(e){failure(e)}}
