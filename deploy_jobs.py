@@ -20,6 +20,7 @@ ALLOWED_TOOLS = {"docker", "npm", "pnpm", "yarn", "corepack", "node", "python", 
 JOBS = {}
 JOBS_LOCK = threading.Lock()
 LOG_LIMIT = 120_000
+ANSI_ESCAPE = re.compile(r"(?:\\x1b|\\ufffd)\\[[0-9;?]*[ -/]*[@-~]")
 
 
 class EnvChange(BaseModel):
@@ -271,8 +272,15 @@ def safe_args(command):
 
 
 def mask(text, secrets):
+    # PM2 emits ANSI formatting, which belongs in a TTY, not in HTML logs.
+    text = ANSI_ESCAPE.sub("", str(text))
     for value in sorted(set(secrets.values()), key=len, reverse=True):
-        if value and len(value) >= 4:
+        if not value or len(value) < 4:
+            continue
+        if re.fullmatch(r"[A-Za-z0-9_]+", value):
+            # Avoid replacing "system" inside "ecosystem".
+            text = re.sub(r"(?<![A-Za-z0-9_])" + re.escape(value) + r"(?![A-Za-z0-9_])", "[REDACTED]", text)
+        else:
             text = text.replace(value, "[REDACTED]")
     return text
 
@@ -280,6 +288,7 @@ def mask(text, secrets):
 def run_process(args, cwd, env, add_log, timeout=300):
     # Shell is never invoked. Stream line buffered stdout and stderr to a bounded job log.
     add_log("$ " + " ".join(shlex.quote(a) for a in args) + "\n")
+    env = {**env, "NO_COLOR": "1", "FORCE_COLOR": "0", "CLICOLOR": "0", "PM2_NO_COLOR": "true"}
     try:
         proc = subprocess.Popen(args, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
