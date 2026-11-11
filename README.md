@@ -399,3 +399,29 @@ sudo systemctl restart linux-manager
 ```
 
 Abra **Containers** e atualize a página com Ctrl+Shift+R. **Não é necessário reiniciar o PostgreSQL ou reimplantar as aplicações existentes** para aplicar a interface. O Redis somente será instalado quando clicar em **Iniciar serviço**.
+
+## v0.9 — Usuários, auditoria e gestão de processos PM2
+
+A autenticação de senha única passa a aceitar usuário/e-mail e senha. Contas e auditoria ficam em SQLite, no diretório privado /srv/linux-manager/auth, com senhas protegidas por scrypt com salt e arquivos restritos ao usuário linuxmanager.
+
+### Primeiro login após a atualização
+
+Na primeira inicialização, se ainda não houver contas, o painel cria uma conta admin (usuário admin) com senha inicial igual à ADMIN_PASSWORD que já existe no /opt/linux-manager/.env. O e-mail inicial é BOOTSTRAP_ADMIN_EMAIL quando configurado ou admin@localhost.invalid. A senha de bootstrap precisa ter pelo menos 12 caracteres. Sessões antigas deixam de funcionar: entre pelo HTTPS usando nome admin e senha anterior. Em Usuários → Editar, substitua imediatamente e-mail e senha por valores fortes e exclusivos. A atualização de ADMIN_PASSWORD no arquivo .env não altera uma conta já criada no SQLite.
+
+### Permissões
+
+O papel user acessa as páginas operacionais atuais, incluindo PM2, aplicações, containers, bancos e terminal quando habilitado. O papel admin tem acesso adicional às páginas Usuários e Auditoria. O backend verifica as permissões além de ocultar a navegação. Administradores podem criar, editar, ativar e inativar contas, alterar senhas e selecionar tipos admin ou user. O painel exige manter pelo menos um administrador ativo e impede autodesativação/rebaixamento.
+
+### Auditoria
+
+Registra timestamp, usuário, ação, recurso, HTTP status e origem das mutações de API, logins e falhas, alterações de contas e abertura/fechamento de sessões de terminal. Não armazena corpos de requisição, valores .env, cookies, senhas ou comandos digitados no shell. Há paginação. Faça backups consistentes do SQLite usando o mecanismo de backup do SQLite, incluindo WAL quando apropriado.
+
+IMPORTANTE: enquanto usuários comuns tiverem acesso ao terminal ou ao Docker com permissões do usuário linuxmanager, eles podem modificar arquivos do sistema e até o banco SQLite. A separação admin/user funciona como controle de acesso do painel, mas NÃO é isolamento seguro diante de shell/Docker privilegiado. Para segurança forte, restrinja shell/Docker aos administradores ou introduza contas/processos Linux separados e isolamento de permissões. A auditoria não é resistente a adulteração por usuários com acesso ao sistema operacional.
+
+### Tela PM2
+
+Agora exibe indicadores de total, online e reinícios, CPU, memória e controles Iniciar/Parar/Reiniciar/Logs por processo. O backend recusa controlar processos que não pertençam a projetos cadastrados.
+
+### Atualização
+
+Faça backup privado do /opt/linux-manager/.env e de /srv/linux-manager antes de migrar. Em seguida, como linuxmanager, execute git pull --ff-only e .venv/bin/python -m py_compile app.py identity_store.py; reinicie sudo systemctl restart linux-manager. Abra pelo HTTPS/Traefik e faça login com admin + senha anterior. Não é necessário reiniciar as aplicações PM2.
