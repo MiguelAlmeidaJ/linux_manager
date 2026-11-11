@@ -80,6 +80,48 @@ class EnvExampleTests(unittest.TestCase):
                 dj.sync_project_dotenv(root, "AiCorta", {"SAFE": "yes"})
             self.assertEqual(sensitive.read_text(), "secret")
 
+    def test_document_editor_round_trip_and_concurrent_revision(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / "projects"
+            (root / "AiCorta").mkdir(parents=True)
+            dj.save_env(root, "AiCorta", dj.EnvChange(values={
+                "DATABASE_URL": "postgresql://owner:p@127.0.0.1:5432/app?schema=public",
+                "DISPLAY_NAME": 'O "Barbeiro" \\ Spa',
+                "SYSTEM_NAME": "Sistema",
+            }))
+            original = dj.read_env_document(root, "AiCorta")
+            self.assertNotIn("SYSTEM_NAME=Sistema", original["content"])
+            self.assertEqual(dj.parse_env_document(original["content"]),
+                             dj.read_env(root, "AiCorta"))
+            revised = original["content"].replace('SYSTEM_NAME="Sistema"', 'SYSTEM_NAME="Admin"')
+            response = dj.write_env_document(root, "AiCorta",
+                dj.EnvDocument(content=revised, revision=original["revision"]))
+            self.assertTrue(response["saved"])
+            self.assertEqual(dj.read_env(root, "AiCorta")["SYSTEM_NAME"], "Admin")
+            self.assertEqual((root / "AiCorta" / ".env").stat().st_mode & 0o777, 0o600)
+            from fastapi import HTTPException
+            with self.assertRaises(HTTPException) as conflict:
+                dj.write_env_document(root, "AiCorta",
+                    dj.EnvDocument(content=revised, revision=original["revision"]))
+            self.assertEqual(conflict.exception.status_code, 409)
+
+    def test_document_rejects_duplicates_reserved_and_multiline_values(self):
+        from fastapi import HTTPException
+        for content in (
+            "API_PORT=3001\nAPI_PORT=3002\n",
+            "SESSION_SECRET=x\n",
+            "INVALID-KEY=yes\n",
+            'PASSWORD="unterminated\n',
+            'VALUE="first\\nsecond"\n',
+            "EMPTY\n",
+        ):
+            with self.subTest(content=content), self.assertRaises(HTTPException):
+                dj.parse_env_document(content)
+        self.assertEqual(
+            dj.parse_env_document("## comment\nEMPTY=\nFOO='literal # value'\nPORT_CUSTOM=3001"),
+            {"EMPTY": "", "FOO": "literal # value", "PORT_CUSTOM": "3001"},
+        )
+
     def test_missing_example(self):
         with tempfile.TemporaryDirectory() as temp:
             self.assertEqual(dj.example_env_keys(Path(temp), {}),
