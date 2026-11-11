@@ -129,7 +129,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 @media(max-width:720px){.content{padding:20px 15px}.topbar{padding:0 16px}.proj{padding:18px}.proj-grid{gap:10px 17px}}
 
 .operation-panel{padding:14px 20px}.operation-panel>summary{cursor:pointer;color:#526781;font-size:12px;font-weight:650;user-select:none;list-style:revert}.operation-panel:not([open]){background:transparent;border-style:dashed;box-shadow:none}.operation-panel[open]>summary{color:#263a55}.operation-panel pre{margin-top:10px;max-height:240px}
-</style>
+.service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}.service-item{padding:19px;border:1px solid #e2e9f2;border-radius:12px;background:#fafcff}.service-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.service-head strong{font-size:16px;color:#1a2c45}.service-head p{margin:6px 0 0}.service-meta{color:#61758d;border-top:1px solid #e6edf5;margin-top:17px;padding-top:12px;font-size:12px}.log-output{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}.table td{overflow-wrap:anywhere}@media(max-width:1100px){.service-grid{grid-template-columns:1fr}}</style>
 </head>
 <body>
 <div id="login" class="loginwrap hide"><div class="panel login"><div class="brand"><div class="brand-logo">⌘</div><div><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha de administrador"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
@@ -179,7 +179,12 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div id="projectList"><div class="empty"><span class="glyph">◇</span>Carregando aplicações...</div></div>
 </section>
 <section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Gerenciamento dos processos Node.js e Python.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><div class="panel"><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>Reinícios</th><th>Memória</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
-<section id="docker" class="hide"><div class="heading"><div><h1>Containers Docker</h1><p>Containers e serviços Docker deste servidor.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div><div class="panel"><pre id="dockerOutput">Carregando containers...</pre></div></section>
+<section id="docker" class="hide">
+<div class="heading"><div><h1>Containers e serviços</h1><p>Gerencie serviços compartilhados sem interromper containers de outras aplicações.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div>
+<div class="panel"><div class="section-top"><div><h2>Catálogo de serviços</h2><p class="small muted">Instâncias compartilhadas · acesso local · volumes persistentes</p></div><span class="badge">Gerenciado</span></div><div id="managedServiceList" class="service-grid"></div><div class="help" style="margin-top:15px">SQL Server e serviços adicionais exigirão implantação dedicada e dimensionamento de recursos. Nenhum serviço será exposto publicamente pelo painel.</div></div>
+<div class="panel" style="margin-top:18px"><div class="section-top"><div><h2>Containers existentes</h2><p class="small muted">Visão de todos os containers Docker; operações em containers externos não estão habilitadas.</p></div><span class="badge" id="dockerCount">0 containers</span></div><div id="containerInventory" class="table-wrap"></div></div>
+<div class="panel hide" style="margin-top:18px" id="serviceLogsPanel"><div class="section-top"><h2 id="serviceLogsTitle">Logs do serviço</h2><button class="ghost" id="closeServiceLogs">Fechar</button></div><pre id="serviceLogsText" class="log-output"></pre></div>
+</section>
 <section id="databases" class="hide">
 <div class="heading"><div><h1>Bancos de Dados</h1><p>PostgreSQL e MySQL centralizados neste servidor, sem portas públicas.</p></div><button class="ghost" id="refreshDB">↻ Atualizar</button></div>
 <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))" id="dbServices"><div class="panel muted">Verificando serviços...</div></div>
@@ -210,7 +215,8 @@ const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
 async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
 function notify(msg){const el=$("toast");el.textContent=msg;el.classList.remove("hide");setTimeout(()=>el.classList.add("hide"),3500)}
-function result(text){$("output").textContent=typeof text==="string"?text:JSON.stringify(text,null,2);$("operationPanel").open=true}
+function cleanLog(value){return String(value??"").replace(/(?:\\x1b|\\uFFFD)\\[[0-9;?]*[ -/]*[@-~]/g,"").replace(/[\\u0000-\\u0008\\u000B-\\u001F\\u007F]/g,"")}
+function result(text){$("output").textContent=cleanLog(typeof text==="string"?text:JSON.stringify(text,null,2));$("operationPanel").open=true}
 function failure(e){result("Erro: "+e.message);notify("Operação falhou: "+e.message)}
 function loginView(){$("app").classList.add("hide");$("login").classList.remove("hide")}
 function mainView(){$("app").classList.remove("hide");$("login").classList.add("hide")}
@@ -477,7 +483,79 @@ $("dbCreateForm").onsubmit=async e=>{
 };
 
 async function loadPM2(){try{const data=await api("/pm2");$("pm2Table").innerHTML=data.map(p=>'<tr><td>'+esc(p.name)+'</td><td><span class="status '+(p.pm2_env?.status==="online"?"":"off")+'">'+esc(p.pm2_env?.status||"—")+'</span></td><td>'+esc(p.pid)+'</td><td>'+esc(p.pm2_env?.restart_time||0)+'</td><td>'+esc(((p.monit?.memory||0)/1048576).toFixed(1))+' MB</td></tr>').join("")||'<tr><td colspan="5">Nenhum processo.</td></tr>'}catch(e){failure(e)}}
-async function loadDocker(){try{$("dockerOutput").textContent=(await api("/docker")).output||"Nenhum container"}catch(e){$("dockerOutput").textContent=e.message}}
+async function loadDocker(){
+ try{
+  const [data,projects]=await Promise.all([api("/containers"),api("/projects")]);
+  $("dockerCount").textContent=data.containers.length+" container(s)";
+  const services=$("managedServiceList");services.replaceChildren();
+  for(const service of data.services){
+   const item=document.createElement("article");item.className="service-item";
+   const head=document.createElement("div");head.className="service-head";
+   const heading=document.createElement("div");
+   const title=document.createElement("strong");title.textContent=service.name;
+   const subtitle=document.createElement("p");subtitle.className="small muted";subtitle.textContent=service.type+" · "+service.image;
+   heading.append(title,subtitle);
+   const status=document.createElement("span");status.className="status "+(service.running?"":"off");
+   status.textContent=service.running?"Em execução":"Parado";
+   head.append(heading,status);item.append(head);
+   const details=document.createElement("div");details.className="service-meta";
+   details.textContent="127.0.0.1:"+service.port+" · "+(service.container?.status||"Não iniciado");
+   item.append(details);
+   const acts=document.createElement("div");acts.className="actions";acts.style.marginTop="17px";
+   const run=document.createElement("button");run.className=service.running?"ghost":"";
+   run.textContent=service.running?"Parar serviço":"Iniciar serviço";
+   run.onclick=async()=>{
+    if(service.running){
+      if(!confirm("Interromper "+service.name+"? Aplicações conectadas podem ficar indisponíveis. Os volumes não serão removidos."))return;
+      const typed=prompt("Digite "+service.id+" para confirmar a parada:");
+      if(typed!==service.id)return;
+      try{const resp=await api("/containers/services/"+service.id+"/stop","POST",{confirmation:typed});notify(resp.message);await loadDocker()}catch(e){failure(e)}
+    }else{
+      run.disabled=true;
+      try{const resp=await api("/containers/services/"+service.id+"/start","POST",{});notify("Serviço "+service.name+" iniciado");await loadDocker()}catch(e){failure(e);run.disabled=false}
+    }
+   };
+   const logs=document.createElement("button");logs.className="ghost";logs.textContent="Ver logs";
+   logs.disabled=!service.container;
+   logs.onclick=async()=>{
+    try{
+      const res=await api("/containers/services/"+service.id+"/logs","POST",{});
+      $("serviceLogsTitle").textContent="Logs · "+service.name;
+      $("serviceLogsText").textContent=cleanLog(res.logs);
+      $("serviceLogsPanel").classList.remove("hide");
+    }catch(e){failure(e)}
+   };
+   acts.append(run,logs);
+   if(service.id==="redis"&&service.running){
+    const bind=document.createElement("button");bind.className="ghost";bind.textContent="Vincular Redis";
+    bind.onclick=async()=>{
+      const options=projects.filter(p=>p.runtime!=="docker").map(p=>p.name);
+      if(!options.length){notify("Cadastre primeiro uma aplicação PM2");return}
+      const project=prompt("Aplicação para configurar REDIS_URL:\n"+options.join(", "));
+      if(!options.includes(project))return;
+      try{await api("/containers/services/redis/bind","POST",{project});notify("REDIS_URL configurada em "+project+". Faça deploy para aplicar.")}catch(e){failure(e)}
+    };acts.append(bind)
+   }
+   item.append(acts);services.append(item);
+  }
+  const table=document.createElement("table");table.className="table";
+  const thead=document.createElement("thead");thead.innerHTML="<tr><th>Container</th><th>Imagem</th><th>Estado</th><th>Portas</th><th>Origem</th></tr>";
+  const tbody=document.createElement("tbody");
+  if(!data.containers.length){
+   const tr=document.createElement("tr");const td=document.createElement("td");td.colSpan=5;td.textContent="Nenhum container encontrado";tr.append(td);tbody.append(tr);
+  }
+  for(const container of data.containers){
+   const tr=document.createElement("tr");
+   for(const val of [container.name,container.image,container.status,container.ports,container.managed?"Linux Manager":"Externo"]){
+    const td=document.createElement("td");td.textContent=val||"—";tr.append(td)
+   }
+   tbody.append(tr);
+  }
+  table.append(thead,tbody);$("containerInventory").replaceChildren(table)
+ }catch(e){failure(e)}
+}
+$("closeServiceLogs").onclick=()=>{$("serviceLogsPanel").classList.add("hide");$("serviceLogsText").textContent=""};
+
 async function loadPorts(){try{const data=await api("/ports");$("portsTable").innerHTML=data.map(p=>'<tr><td><strong>'+esc(p.port)+'</strong></td><td>'+esc(p.address)+'</td><td>'+esc(p.pid??"—")+'</td></tr>').join("")||'<tr><td colspan="3">Nenhuma porta identificada.</td></tr>'}catch(e){failure(e)}}
 $("reloadPm2").onclick=loadPM2;$("reloadDocker").onclick=loadDocker;$("reloadPorts").onclick=loadPorts;
 function disconnect(){if(socket){socket.close();socket=null}}
