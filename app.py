@@ -386,6 +386,32 @@ def pm2_list(request: Request):
     assert_auth(request)
     return pm2_process_snapshot()
 
+@app.post("/api/pm2/processes/{process_name}/{action}")
+def manage_pm2_process(process_name: str, action: str, request: Request):
+    assert_auth(request)
+    if action not in ("start", "stop", "restart", "logs"):
+        raise HTTPException(400, "Ação PM2 inválida")
+    if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}", process_name):
+        raise HTTPException(400, "Nome do processo inválido")
+    matches = [p for p in pm2_process_snapshot() if p.get("name") == process_name]
+    if len(matches) != 1:
+        raise HTTPException(409, "Processo ausente ou nome duplicado no PM2")
+    cwd = matches[0].get("pm2_env", {}).get("pm_cwd")
+    owner = None
+    if isinstance(cwd, str):
+        for name in records():
+            if Path(cwd).resolve().is_relative_to((ROOT / name).resolve()):
+                owner = name
+                break
+    if not owner:
+        raise HTTPException(403, "Operações permitidas somente para processos de aplicações cadastradas")
+    if action == "logs":
+        output = command(["pm2", "logs", process_name, "--lines", "80", "--nostream", "--raw"], timeout=20)
+        values = dj.read_env(ROOT, owner)
+        return {"output": dj.mask(output, values)}
+    return {"output": command(["pm2", action, process_name], timeout=40)}
+
+
 @app.post("/api/projects/{name}/pm2/start")
 def pm2_start(name: str, payload: Start, request: Request):
     assert_auth(request)
@@ -689,7 +715,8 @@ def pm2_process_snapshot():
             {"name": p.get("name"), "pid": p.get("pid"),
              "pm2_env": {"pm_cwd": p.get("pm2_env", {}).get("pm_cwd"),
                          "status": p.get("pm2_env", {}).get("status", "offline"),
-                         "restart_time": p.get("pm2_env", {}).get("restart_time", 0)},
+                         "restart_time": p.get("pm2_env", {}).get("restart_time", 0),
+                         "pm_uptime": p.get("pm2_env", {}).get("pm_uptime", 0)},
              "monit": {"cpu": p.get("monit", {}).get("cpu", 0),
                        "memory": p.get("monit", {}).get("memory", 0)}}
             for p in items if isinstance(p, dict)
