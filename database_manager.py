@@ -79,12 +79,17 @@ def root_secrets():
     if not SECRETS.exists():
         private_write(SECRETS,
                       "POSTGRES_ROOT_PASSWORD=" + secrets.token_urlsafe(40) + "\n" +
-                      "MYSQL_ROOT_PASSWORD=" + secrets.token_urlsafe(40) + "\n")
+                      "MYSQL_ROOT_PASSWORD=" + secrets.token_urlsafe(40) + "\n" +
+                      "REDIS_PASSWORD=" + secrets.token_urlsafe(40) + "\n")
     if SECRETS.is_symlink():
         raise HTTPException(500, "Arquivo de segredos inseguro")
     fields = dict(line.split("=", 1) for line in SECRETS.read_text().splitlines() if "=" in line)
     if any(len(fields.get(key, "")) < 24 for key in ("POSTGRES_ROOT_PASSWORD", "MYSQL_ROOT_PASSWORD")):
         raise HTTPException(500, "Segredos dos serviços inválidos")
+    if not fields.get("REDIS_PASSWORD"):
+        # Preserve existing database passwords when migrating an installation.
+        fields["REDIS_PASSWORD"] = secrets.token_urlsafe(40)
+        private_write(SECRETS, "".join(k + "=" + v + "\n" for k, v in fields.items()))
     return fields
 
 
