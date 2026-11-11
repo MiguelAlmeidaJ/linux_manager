@@ -112,10 +112,10 @@ def init(bootstrap_password: str):
             if not MAIL.fullmatch(email):
                 raise RuntimeError("BOOTSTRAP_ADMIN_EMAIL inválido")
             now = int(time.time())
-            conn.execute("INSERT INTO users(username,email,password_hash,role,active,created_at,updated_at) VALUES(?,?,?,'admin',1,?,?)",
-                         ("admin", email, secret_hash(bootstrap_password), now, now))
+            cursor = conn.execute("INSERT INTO users(username,email,password_hash,role,active,created_at,updated_at) VALUES(?,?,?,'admin',1,?,?)",
+                                  ("admin", email, secret_hash(bootstrap_password), now, now))
             conn.execute("INSERT INTO audit(created_at,user_id,username,action,resource,status,ip) VALUES(?,?,?,?,?,?,?)",
-                         (now, 1, "admin", "system.bootstrap", "auth", 200, "local"))
+                         (now, cursor.lastrowid, "admin", "system.bootstrap", "auth", 200, "local"))
         conn.commit()
 
 
