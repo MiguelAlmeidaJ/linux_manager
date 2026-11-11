@@ -18,7 +18,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 DB_PATH = Path(os.environ.get("AUTH_DATABASE_PATH",
-                  str(Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).resolve().parent / "manager-auth.sqlite3")))
+                  str(Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).resolve().parent / "auth" / "manager-auth.sqlite3")))
 DB_LOCK = threading.RLock()
 USERNAME = re.compile(r"^[a-z][a-z0-9._-]{2,39}$")
 MAIL = re.compile(r"^[^\s@]{1,100}@[^\s@]{1,120}\.[^\s@]{2,40}$")
@@ -45,6 +45,9 @@ class EditUser(BaseModel):
 
 def db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    if DB_PATH.parent.is_symlink() or DB_PATH.is_symlink():
+        raise HTTPException(500, "Banco de autenticação em caminho inseguro")
+    os.chmod(DB_PATH.parent, 0o700)
     if DB_PATH.is_symlink():
         raise HTTPException(500, "Banco de autenticação em caminho inseguro")
     conn = sqlite3.connect(str(DB_PATH), timeout=10)
