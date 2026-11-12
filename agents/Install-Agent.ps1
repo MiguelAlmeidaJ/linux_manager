@@ -73,8 +73,8 @@ Copy-Item -LiteralPath (Join-Path $source "windows_service.py") -Destination $ta
 # PM2 runs per user. When installing from the PM2 owner session, this
 # points to that user's daemon; otherwise edit pm2_home after install.
 $pm2Home = if ($env:PM2_HOME) { $env:PM2_HOME } else { Join-Path $env:USERPROFILE ".pm2" }
-$pm2Command = (Get-Command pm2.cmd -ErrorAction SilentlyContinue | Select-Object -First 1).Source
-if (-not $pm2Command) { $pm2Command = "" }
+$detectedPM2 = Get-Command pm2.cmd -ErrorAction SilentlyContinue | Select-Object -First 1
+$pm2Command = if ($detectedPM2) { [string]$detectedPM2.Source } else { "" }
 $config = @{
   server_url = [string]$data.server_url
   node_id = [int]$data.node_id
