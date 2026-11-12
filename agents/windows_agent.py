@@ -56,6 +56,107 @@ def pm2_processes():
         return []
 
 
+def windows_pm2_ports(processes):
+    """Find TCP LISTEN sockets belonging to PM2 PIDs and their descendants.
+
+    Windows can have PM2 wrapper/child node.exe processes. Process owners are
+    derived from CIM parent IDs; sockets are read from Get-NetTCPConnection.
+    We do not guess ports from env, project names, or unrelated listeners.
+    """
+    ids = [int(p["pid"]) for p in processes if str(p.get("pid", "")).isdigit() and int(p["pid"]) > 0]
+    if not ids:
+        return processes
+    script = (
+        "$ErrorActionPreference='SilentlyContinue'; "
+        "$proc=@(Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId); "
+        "$tcp=@(Get-NetTCPConnection -State Listen | Select-Object LocalAddress,LocalPort,OwningProcess); "
+        "@{processes=$proc;tcp=$tcp} | ConvertTo-Json -Depth 4 -Compress"
+    )
+    try:
+        report = json.loads(run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script], 18))
+        parent = {int(p["ProcessId"]): int(p["ParentProcessId"])
+                  for p in report.get("processes", []) if isinstance(p, dict)}
+        indexed = {}
+        for row in report.get("tcp", []):
+            if not isinstance(row, dict):
+                continue
+            pid, port = int(row["OwningProcess"]), int(row["LocalPort"])
+            if 0 < port <= 65535:
+                indexed.setdefault(pid, []).append({"port": port,
+                    "address": str(row["LocalAddress"])[:45]})
+        for proc in processes:
+            root = int(proc["pid"]) if str(proc.get("pid", "")).isdigit() else -1
+            owned = {root}
+            # Bound traversal: avoid chasing malformed or cyclic parent links.
+            for _ in range(12):
+                children = {pid for pid, ppid in parent.items() if ppid in owned}
+                if children.issubset(owned):
+                    break
+                owned.update(children)
+            found = {(item["port"], item["address"])
+                     for pid in owned for item in indexed.get(pid, [])}
+            proc["ports"] = [{"port": port, "address": ip}
+                             for port, ip in sorted(found)[:32]]
+    except (ValueError, TypeError, KeyError, OverflowError):
+        pass
+    return processes
+
+
+def php_projects():
+    """Inventory folders under XAMPP htdocs; never read PHP or .env contents."""
+    root = Path(os.environ.get("XAMPP_HOME", r"C:\xampp")) / "htdocs"
+    projects = []
+    try:
+        for folder in sorted(root.iterdir(), key=lambda p: p.name.lower())[:200]:
+            if not folder.is_dir() or folder.is_symlink() or folder.name.lower() in ("dashboard", "webalizer", "xampp"):
+                continue
+            try:
+                entries = list(folder.iterdir())[:150]
+                php_files = [f for f in entries if f.is_file() and f.suffix.lower() == ".php"]
+                if not php_files and not (folder / "composer.json").is_file() and not (folder / "public" / "index.php").is_file():
+                    continue
+                framework = "Composer" if (folder / "composer.json").is_file() else "PHP"
+                if (folder / "artisan").is_file():
+                    framework = "Laravel"
+                projects.append({"name": folder.name[:120],
+                                 "path": str(folder)[:260],
+                                 "type": framework, "source": "htdocs"})
+            except (OSError, PermissionError):
+                continue
+    except (OSError, PermissionError):
+        return []
+    # No auto-discovery of vhosts pointing outside htdocs in this phase.
+    return projects[:100]
+
+
+def mysql_databases():
+    """List databases with read-only monitor credentials, without exposing them.
+
+    A separate account with only minimal metadata privileges should be placed
+    in mysql-monitor.cnf inside the protected ProgramData/ServerManager dir.
+    No root credentials or passwords are put into argv or agent JSON payload.
+    """
+    xampp = Path(os.environ.get("XAMPP_HOME", r"C:\xampp"))
+    cli = xampp / "mysql" / "bin" / "mysql.exe"
+    settings = CONFIG_PATH.parent / "mysql-monitor.cnf"
+    if not cli.is_file():
+        return {"status": "not_installed", "engine": "MySQL/MariaDB",
+                "databases": []}
+    if not settings.is_file():
+        return {"status": "configuration_required", "engine": "MySQL/MariaDB",
+                "databases": []}
+    output = run([str(cli), "--defaults-extra-file=" + str(settings),
+                  "--protocol=TCP", "--connect-timeout=4",
+                  "--batch", "--skip-column-names", "--execute=SHOW DATABASES"], 12)
+    if not output:
+        return {"status": "unavailable", "engine": "MySQL/MariaDB", "databases": []}
+    system = {"information_schema", "performance_schema", "mysql", "sys"}
+    names = [line.strip() for line in output.splitlines()
+             if line.strip() and line.strip().lower() not in system]
+    return {"status": "ok", "engine": "MySQL/MariaDB",
+            "databases": [{"name": name[:120]} for name in names[:100]]}
+
+
 def windows_services():
     # Read-only inventory: some XAMPP installs run Apache/MySQL without
     # Windows services, so their absence does not indicate they are stopped.
@@ -107,7 +208,8 @@ def send():
         raise RuntimeError("Defina LM_SERVER_URL=https://..., LM_NODE_ID e LM_NODE_TOKEN")
     report = {"hostname": platform.node() or "windows",
               "os_version": platform.platform()[:200],
-              "pm2": pm2_processes(), "services": windows_services(),
+              "pm2": windows_pm2_ports(pm2_processes()), "services": windows_services(),
+              "php_projects": php_projects(), "mysql": mysql_databases(),
               "addresses": network_addresses()}
     data = json.dumps(report).encode("utf-8")
     request = urllib.request.Request(
