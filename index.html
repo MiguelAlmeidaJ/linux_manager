@@ -290,7 +290,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 #selectedServerWorkspace:not(.hide){margin-bottom:17px;background:#f7faff;border:1px solid #e5ecf6;padding:19px;border-radius:12px}
 @media(max-width:720px){.server-switch select{max-width:150px}}
 .pm2-filters{display:grid;grid-template-columns:minmax(200px,1fr) 195px;gap:13px;margin:13px 0 20px}.pm2-filters .field{margin:0;font-size:11px}.pm2-filters input,.pm2-filters select{margin-top:7px}.pm2-port-cell{max-width:220px;min-width:90px}.pm2-port-chip{display:inline-block;border-radius:6px;background:#edf4ff;color:#2e5eab;border:1px solid #dce7fa;padding:4px 7px;font-size:10px;font-weight:700;margin:2px 4px 2px 0;font-variant-numeric:tabular-nums}@media(max-width:720px){.pm2-filters{grid-template-columns:1fr}}
-</style>
+.remote-stack-panel{margin:17px 0}.remote-stack-panel .table{margin-top:9px}.remote-db-state{color:#55708f;background:#f5f9ff;border:1px solid #e5edf9;border-radius:8px;padding:11px 13px;margin:14px 0;font-size:12px}.remote-stack-panel .table td{overflow-wrap:anywhere}</style>
 </head>
 <body>
 <div id="login" class="loginwrap hide"><div class="panel login"><div class="brand login-brand"><img class="brand-full-image hide" alt="Logo do sistema"><div class="brand-default"><div class="brand-logo">⌘</div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
@@ -348,7 +348,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 </section>
 <section id="servers" class="hide">
 <div class="heading"><div><h1>Servidores</h1><p>Inventário de servidores Linux e Windows, processos PM2 e serviços compartilhados.</p></div><button id="addServer" class="admin-only hide">+ Adicionar servidor</button></div>
-<div class="panel"><div class="section-top"><div><h2>Servidores gerenciados</h2><p class="small muted">Este Linux Manager é o controlador principal. Outros servidores reportam seus dados por HTTPS.</p></div><button class="ghost" id="refreshServers">↻ Atualizar</button></div><div id="selectedServerWorkspace" class="hide"></div><div id="serversList" class="server-list"><p class="small muted">Carregando servidores...</p></div></div>
+<div class="panel"><div class="section-top"><div><h2>Servidores gerenciados</h2><p class="small muted">Este Linux Manager é o controlador principal. Outros servidores reportam seus dados por HTTPS.</p></div><button class="ghost" id="refreshServers">↻ Atualizar</button></div><div id="selectedServerWorkspace" class="hide"></div><div id="remoteStackInventory" class="hide"></div><div id="serversList" class="server-list"><p class="small muted">Carregando servidores...</p></div></div>
 <div id="serverTokenPanel" class="panel hide" style="margin-top:18px"><div class="section-top"><h2>Credencial do novo servidor</h2><button class="ghost" id="closeTokenPanel">Fechar</button></div><p class="help">Copie agora. O token é mostrado apenas nesta etapa e deve ficar protegido no servidor remoto. Execute o agente usando HTTPS.</p><label class="field">ID do servidor<input id="newNodeId" readonly></label><label class="field">Token privado<input id="newNodeToken" type="password" readonly></label><div class="actions"><button type="button" id="downloadWindowsInstaller">Baixar instalador Windows (.zip)</button><button type="button" class="ghost" id="copyServerToken">Copiar token</button><button type="button" class="ghost" id="downloadAgentGuide">Ver instruções</button></div><pre id="serverAgentGuide" class="hide" style="white-space:pre-wrap"></pre></div>
 </section>
 <dialog id="addServerDialog" class="user-dialog"><form id="addServerForm" class="formgrid"><div class="wide"><div class="section-top"><h2>Adicionar servidor</h2><button type="button" class="ghost" id="cancelAddServer">Fechar</button></div><p class="help">Cadastre o host e configure o agente no Windows Server. Não é necessário expor WinRM ou RDP à internet.</p></div><label class="field wide">Nome do servidor<input name="name" required minlength="2" maxlength="80" placeholder="windows-producao-01"></label><label class="field wide">Sistema operacional<select name="os_type"><option value="windows">Windows Server</option><option value="linux">Linux (agente futuro)</option></select></label><div class="wide actions" style="justify-content:flex-end"><button type="submit">Criar servidor</button></div></form></dialog>
@@ -894,6 +894,59 @@ async function loadServers(){
    if(chosen){const heading=document.createElement("h2");heading.textContent="Ambiente: "+chosen.name;
     const note=document.createElement("p");note.className="small muted";note.textContent="IP informado: "+(chosen.addresses?.join(", ")||"Aguardando agente")+" · "+(chosen.online?"Online":"Offline")+" · Inventário remoto, sem executar comandos no Linux principal.";
     workspace.append(heading,note)}
+  }
+  const inventory=$("remoteStackInventory");inventory.replaceChildren();
+  inventory.classList.toggle("hide",selectedNode==="local");
+  if(selectedNode!=="local"&&scoped.length){
+   try{
+    const detail=await api("/servers/"+encodeURIComponent(selectedNode));
+    const panel=(title,subtitle)=>{
+     const card=document.createElement("section");card.className="panel remote-stack-panel";
+     const heading=document.createElement("div");heading.className="section-top";
+     const info=document.createElement("div"),label=document.createElement("h2");label.textContent=title;
+     const caption=document.createElement("p");caption.className="small muted";caption.textContent=subtitle;
+     info.append(label,caption);heading.append(info);card.append(heading);
+     return card
+    };
+    const php=panel("Projetos PHP / XAMPP","Projetos encontrados nas pastas de htdocs do Windows Server, sem ler arquivos confidenciais.");
+    const phpProjects=Array.isArray(detail.php_projects)?detail.php_projects:[];
+    const count=document.createElement("span");count.className="badge";count.textContent=phpProjects.length+" projeto(s)";
+    php.querySelector(".section-top").append(count);
+    const phpTable=document.createElement("table");phpTable.className="table";
+    phpTable.innerHTML="<thead><tr><th>Projeto</th><th>Tecnologia</th><th>Diretório</th></tr></thead>";
+    const phpBody=document.createElement("tbody");
+    for(const app of phpProjects){
+     const tr=document.createElement("tr");
+     for(const value of [app.name,app.type,app.path]){
+      const td=document.createElement("td");td.textContent=String(value||"—");tr.append(td)
+     }phpBody.append(tr)
+    }
+    if(!phpProjects.length){const tr=document.createElement("tr"),td=document.createElement("td");
+     td.colSpan=3;td.textContent="Nenhum projeto encontrado em htdocs. VirtualHosts externos não são inventariados nesta versão.";tr.append(td);phpBody.append(tr)}
+    phpTable.append(phpBody);
+    const phpWrap=document.createElement("div");phpWrap.className="table-wrap";phpWrap.append(phpTable);php.append(phpWrap);
+    inventory.append(php);
+
+    const mysql=detail.mysql||{},databases=Array.isArray(mysql.databases)?mysql.databases:[];
+    const dbCard=panel("Bancos MySQL / MariaDB · XAMPP","Inventário somente leitura dos bancos visíveis à conta de monitoramento.");
+    const dbCount=document.createElement("span");dbCount.className="badge";dbCount.textContent=databases.length+" banco(s)";
+    dbCard.querySelector(".section-top").append(dbCount);
+    const state=document.createElement("p");state.className="remote-db-state";
+    const labels={ok:"Conexão de monitoramento ativa",configuration_required:"Configuração de monitoramento necessária",not_installed:"Cliente MySQL não localizado",unavailable:"Banco indisponível ou credencial sem acesso"};
+    state.textContent=labels[mysql.status]||"Aguardando primeiro relatório do agente";
+    dbCard.append(state);
+    if(databases.length){
+     const table=document.createElement("table");table.className="table";
+     table.innerHTML="<thead><tr><th>Banco de dados</th><th>Origem</th></tr></thead>";
+     const body=document.createElement("tbody");
+     for(const db of databases){
+      const tr=document.createElement("tr"),name=document.createElement("td"),origin=document.createElement("td");
+      name.textContent=db.name;origin.textContent=detail.name;tr.append(name,origin);body.append(tr)
+     }table.append(body);const wrap=document.createElement("div");wrap.className="table-wrap";wrap.append(table);dbCard.append(wrap)
+    }
+    const note=document.createElement("p");note.className="small muted";note.textContent="O monitor não recebe senhas nem permite consultas SQL pelo painel. Use uma conta específica de leitura no MySQL/MariaDB.";
+    dbCard.append(note);inventory.append(dbCard)
+   }catch(e){failure(e)}
   }
   const root=$("serversList");root.replaceChildren();
   const local=document.createElement("article");local.className="managed-node";
