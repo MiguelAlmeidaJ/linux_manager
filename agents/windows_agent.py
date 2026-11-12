@@ -125,7 +125,7 @@ def php_projects():
             except (OSError, PermissionError):
                 continue
     except (OSError, PermissionError):
-        return []
+        pass
     # Apache VirtualHosts can use DocumentRoot outside htdocs. Only extract
     # ServerName and DocumentRoot from the local Apache conf (no php or env read).
     conf = Path(os.environ.get("XAMPP_HOME", r"C:\xampp")) / "apache" / "conf" / "extra" / "httpd-vhosts.conf"
