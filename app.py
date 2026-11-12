@@ -366,7 +366,7 @@ def server_details(node_id: int, request: Request):
 
 
 class RemoteActionRequest(BaseModel):
-    kind: Literal["start", "stop", "restart", "reload", "logs", "service_restart", "service_logs"]
+    kind: Literal["start", "stop", "restart", "reload", "logs", "service_restart", "service_logs", "xampp_restart"]
     target: str = Field(min_length=1, max_length=120)
 
 
