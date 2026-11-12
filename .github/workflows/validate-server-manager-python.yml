@@ -1,0 +1,49 @@
+name: Validate Server Manager Python
+on:
+  push:
+    paths:
+      - "app.py"
+      - "server_registry.py"
+      - "agents/**"
+      - "tests/test_remote_actions.py"
+      - "tests/test_windows_actions.py"
+      - "tests/test_windows_metrics.py"
+      - "tests/test_server_registry.py"
+      - "tests/test_agent_update_bundle.py"
+      - ".github/workflows/validate-server-manager-python.yml"
+  pull_request:
+    paths:
+      - "app.py"
+      - "server_registry.py"
+      - "agents/**"
+      - "tests/test_remote_actions.py"
+      - "tests/test_windows_actions.py"
+      - "tests/test_windows_metrics.py"
+      - "tests/test_server_registry.py"
+      - "tests/test_agent_update_bundle.py"
+      - ".github/workflows/validate-server-manager-python.yml"
+
+jobs:
+  backend-unit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Check syntax
+        run: python -m py_compile app.py server_registry.py agents/windows_actions.py agents/windows_agent.py agents/windows_metrics.py agents/windows_service.py
+      - name: Exercise remote action queue and Windows mocked actions
+        env:
+          ADMIN_PASSWORD: "test-password-for-github-workflows"
+          SESSION_SECRET: "long-random-session-secret-for-github-action-tests"
+        run: |
+          python -m unittest discover -s tests -p test_remote_actions.py
+          python -m unittest discover -s tests -p test_windows_actions.py
+          python -m unittest discover -s tests -p test_windows_metrics.py
+          python -m unittest discover -s tests -p test_server_registry.py
+          python -m unittest discover -s tests -p test_agent_update_bundle.py
