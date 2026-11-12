@@ -95,6 +95,10 @@ if ($LASTEXITCODE -ne 0) { throw "Falha registrando servico Windows." }
 & $python (Join-Path $target "windows_service.py") start
 if ($LASTEXITCODE -ne 0) { throw "Falha iniciando servico Windows." }
 
+# Automatic recovery if the service exits unexpectedly.
+& sc.exe failure ServerManagerAgent reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
+if ($LASTEXITCODE -ne 0) { Write-Warning "Nao foi possivel configurar recuperacao automatica de falhas." }
+
 Write-Host ""
 Write-Host "Server Manager Agent instalado e iniciado como servico automatico."
 Write-Host "PM2_HOME configurado: $pm2Home"
