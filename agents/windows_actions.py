@@ -75,6 +75,21 @@ def perform(action, pm2_home="", pm2_command=""):
                     continue
             ok = bool(outputs)
             output = "\n\n".join(outputs)[-10000:] if outputs else "Arquivo de log do XAMPP não localizado"
+        elif kind == "xampp_restart":
+            if target != "xampp":
+                raise RuntimeError("Alvo de reinício XAMPP inválido")
+            ps = (
+                "$ErrorActionPreference='Stop'; "
+                "$db=@('mysql','mysql80','mariadb') | ForEach-Object {Get-Service -Name $_ -ErrorAction SilentlyContinue} | Select-Object -First 1; "
+                "$web=@('Apache2.4','Apache') | ForEach-Object {Get-Service -Name $_ -ErrorAction SilentlyContinue} | Select-Object -First 1; "
+                "if(-not $db -or -not $web){throw 'Apache e MySQL precisam ser servicos do Windows'}; "
+                "foreach($svc in @($db,$web)){"
+                "if($svc.Status -eq 'Running'){Restart-Service -Name $svc.Name -Force -ErrorAction Stop}"
+                "else{Start-Service -Name $svc.Name -ErrorAction Stop}; "
+                "Write-Output ($svc.Name + ': ' + (Get-Service -Name $svc.Name).Status)}"
+            )
+            ok, output = _run(["powershell.exe", "-NoProfile", "-NonInteractive",
+                               "-Command", ps], timeout=100)
         elif kind == "service_restart":
             if target.lower() not in SERVICE_NAMES:
                 raise RuntimeError("Somente serviços Apache/MySQL podem ser reiniciados")
