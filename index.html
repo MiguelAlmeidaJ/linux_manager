@@ -284,6 +284,11 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 .node-processes{margin-top:16px;border-top:1px solid #e7edf5;padding-top:15px}
 .node-service-group{margin-top:12px}.node-service-group>strong{display:block;font-size:12px;margin-bottom:7px}
 .node-service-row{display:flex;justify-content:space-between;gap:12px;font-size:11px;padding:8px;border-bottom:1px solid #e9eef5}
+.server-switch{display:flex;align-items:center;gap:8px;background:#f6f9fd;border:1px solid #e2eaf4;border-radius:10px;padding:4px 10px}
+.server-switch select{background:transparent!important;border:0!important;max-width:250px;font-size:11px;color:#314d73;padding:5px;cursor:pointer}
+.remote-notice{background:#eef5ff;border:1px solid #dbe8fd;padding:12px 15px;margin:0 0 16px;border-radius:9px;font-size:12px;color:#39669d}
+#selectedServerWorkspace:not(.hide){margin-bottom:17px;background:#f7faff;border:1px solid #e5ecf6;padding:19px;border-radius:12px}
+@media(max-width:720px){.server-switch select{max-width:150px}}
 </style>
 </head>
 <body>
@@ -293,14 +298,14 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="brand"><img class="brand-full-image hide" alt="Linux Manager"><div class="brand-default"><div class="brand-logo">⌘</div><div class="brand-default-name"><strong>Linux Manager</strong><small>SERVER CONSOLE</small></div></div></div>
 <div class="nav-label">Workspace</div>
 <nav class="nav">
-<button data-tab="dashboard" class="active"><span class="ico" data-icon="layout-dashboard" aria-hidden="true"></span>Visão geral</button>
+<button data-tab="dashboard" class="local-nav" class="active"><span class="ico" data-icon="layout-dashboard" aria-hidden="true"></span>Visão geral</button>
 <button data-tab="servers"><span class="ico" data-icon="server" aria-hidden="true"></span>Servidores</button>
-<button data-tab="projects"><span class="ico" data-icon="layers-3" aria-hidden="true"></span>Aplicações</button>
-<button data-tab="pm2"><span class="ico" data-icon="activity" aria-hidden="true"></span>Processos PM2</button>
-<button data-tab="docker"><span class="ico" data-icon="boxes" aria-hidden="true"></span>Containers</button>
-<button data-tab="databases"><span class="ico" data-icon="database" aria-hidden="true"></span>Bancos de Dados</button>
-<button data-tab="ports"><span class="ico" data-icon="network" aria-hidden="true"></span>Portas de rede</button>
-<button data-tab="terminal"><span class="ico" data-icon="terminal" aria-hidden="true"></span>Terminal</button>
+<button data-tab="projects" class="local-nav"><span class="ico" data-icon="layers-3" aria-hidden="true"></span>Aplicações</button>
+<button data-tab="pm2" class="local-nav"><span class="ico" data-icon="activity" aria-hidden="true"></span>Processos PM2</button>
+<button data-tab="docker" class="local-nav"><span class="ico" data-icon="boxes" aria-hidden="true"></span>Containers</button>
+<button data-tab="databases" class="local-nav"><span class="ico" data-icon="database" aria-hidden="true"></span>Bancos de Dados</button>
+<button data-tab="ports" class="local-nav"><span class="ico" data-icon="network" aria-hidden="true"></span>Portas de rede</button>
+<button data-tab="terminal" class="local-nav"><span class="ico" data-icon="terminal" aria-hidden="true"></span>Terminal</button>
 <div class="nav-label admin-nav hide nav-admin-label">Administração</div>
 <button data-tab="users" class="admin-nav hide"><span class="ico" data-icon="users-round" aria-hidden="true"></span>Usuários</button>
 <button data-tab="audit" class="admin-nav hide"><span class="ico" data-icon="clipboard-list" aria-hidden="true"></span>Auditoria</button>
@@ -315,7 +320,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
     <div class="topbar-context">Painel de gerenciamento</div>
   </div>
   <div class="topright">
-    <div class="server-pill" title="Servidor conectado"><span class="server-status-dot"></span><span id="hostname">Linux</span></div>
+    <div class="server-switch"><span class="server-status-dot"></span><select id="selectedServer" aria-label="Servidor ativo"><option value="local">Servidor principal</option></select></div>
     <div class="header-separator" aria-hidden="true"></div>
     <details class="account-menu" id="accountMenu">
       <summary class="account-trigger" aria-label="Abrir menu da conta">
@@ -342,8 +347,8 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 </section>
 <section id="servers" class="hide">
 <div class="heading"><div><h1>Servidores</h1><p>Inventário de servidores Linux e Windows, processos PM2 e serviços compartilhados.</p></div><button id="addServer" class="admin-only hide">+ Adicionar servidor</button></div>
-<div class="panel"><div class="section-top"><div><h2>Servidores gerenciados</h2><p class="small muted">Este Linux Manager é o controlador principal. Outros servidores reportam seus dados por HTTPS.</p></div><button class="ghost" id="refreshServers">↻ Atualizar</button></div><div id="serversList" class="server-list"><p class="small muted">Carregando servidores...</p></div></div>
-<div id="serverTokenPanel" class="panel hide" style="margin-top:18px"><div class="section-top"><h2>Credencial do novo servidor</h2><button class="ghost" id="closeTokenPanel">Fechar</button></div><p class="help">Copie agora. O token é mostrado apenas nesta etapa e deve ficar protegido no servidor remoto. Execute o agente usando HTTPS.</p><label class="field">ID do servidor<input id="newNodeId" readonly></label><label class="field">Token privado<input id="newNodeToken" type="password" readonly></label><div class="actions"><button type="button" id="copyServerToken">Copiar token</button><button type="button" class="ghost" id="downloadAgentGuide">Ver instruções</button></div><pre id="serverAgentGuide" class="hide" style="white-space:pre-wrap"></pre></div>
+<div class="panel"><div class="section-top"><div><h2>Servidores gerenciados</h2><p class="small muted">Este Linux Manager é o controlador principal. Outros servidores reportam seus dados por HTTPS.</p></div><button class="ghost" id="refreshServers">↻ Atualizar</button></div><div id="selectedServerWorkspace" class="hide"></div><div id="serversList" class="server-list"><p class="small muted">Carregando servidores...</p></div></div>
+<div id="serverTokenPanel" class="panel hide" style="margin-top:18px"><div class="section-top"><h2>Credencial do novo servidor</h2><button class="ghost" id="closeTokenPanel">Fechar</button></div><p class="help">Copie agora. O token é mostrado apenas nesta etapa e deve ficar protegido no servidor remoto. Execute o agente usando HTTPS.</p><label class="field">ID do servidor<input id="newNodeId" readonly></label><label class="field">Token privado<input id="newNodeToken" type="password" readonly></label><div class="actions"><button type="button" id="downloadWindowsInstaller">Baixar instalador Windows (.zip)</button><button type="button" class="ghost" id="copyServerToken">Copiar token</button><button type="button" class="ghost" id="downloadAgentGuide">Ver instruções</button></div><pre id="serverAgentGuide" class="hide" style="white-space:pre-wrap"></pre></div>
 </section>
 <dialog id="addServerDialog" class="user-dialog"><form id="addServerForm" class="formgrid"><div class="wide"><div class="section-top"><h2>Adicionar servidor</h2><button type="button" class="ghost" id="cancelAddServer">Fechar</button></div><p class="help">Cadastre o host e configure o agente no Windows Server. Não é necessário expor WinRM ou RDP à internet.</p></div><label class="field wide">Nome do servidor<input name="name" required minlength="2" maxlength="80" placeholder="windows-producao-01"></label><label class="field wide">Sistema operacional<select name="os_type"><option value="windows">Windows Server</option><option value="linux">Linux (agente futuro)</option></select></label><div class="wide actions" style="justify-content:flex-end"><button type="submit">Criar servidor</button></div></form></dialog>
 <section id="projects" class="hide">
@@ -436,7 +441,7 @@ function initializeIcons(){
 }
 initializeIcons();
 const pages={dashboard:"Visão geral",servers:"Servidores",projects:"Aplicações",pm2:"Processos PM2",docker:"Containers",databases:"Bancos de Dados",ports:"Portas de rede",terminal:"Terminal",users:"Usuários",audit:"Auditoria",settings:"Configurações"};
-let active="dashboard",terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="",currentUserId=null;
+let active="dashboard",selectedNode="local",registeredServers=[],terminalEnabled=false,socket=null,latestProjects=[],latestStatus=[],currentRole="user",currentUsername="",currentUserId=null;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const bytes=b=>(b/1073741824).toFixed(1)+" GB";const time=s=>{const d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return (d?d+"d ":"")+h+"h "+m+"min"};
 async function api(path,method="GET",body){let opts={method,credentials:"same-origin",headers:body===undefined?{}:{"Content-Type":"application/json"}};if(body!==undefined)opts.body=JSON.stringify(body);const r=await fetch("/api"+path,opts);const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(typeof d.detail==="string"?d.detail:"Erro ao processar solicitação");return d}
@@ -534,13 +539,13 @@ async function init(){try{const me=await api("/me");terminalEnabled=me.terminal;
  $("accountMenuRole").textContent=me.email||"Conta "+me.role;
  $("accountAvatar").textContent=me.username.slice(0,2).toUpperCase();
  $("accountSettings").classList.toggle("hide",me.role!=="admin");
- document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));document.querySelectorAll(".admin-only").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));if(me.role!=="admin"&&(active==="users"||active==="audit"||active==="settings"))active="dashboard";mainView();await refresh()}catch{loginView()}}
+ document.querySelectorAll(".admin-nav").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));document.querySelectorAll(".admin-only").forEach(e=>e.classList.toggle("hide",me.role!=="admin"));await updateServerSelector();if(me.role!=="admin"&&(active==="users"||active==="audit"||active==="settings"))active="dashboard";mainView();await refresh()}catch{loginView()}}
 $("loginForm").onsubmit=async e=>{e.preventDefault();try{await api("/login","POST",{username:$("loginUsername").value.trim(),password:$("password").value});$("password").value="";$("loginError").textContent="";await init()}catch(e){$("loginError").textContent=e.message}}
 $("accountSettings").onclick=()=>{$("accountMenu").open=false;switchTab("settings")};
 document.addEventListener("click",event=>{if($("accountMenu").open&&!$("accountMenu").contains(event.target))$("accountMenu").open=false});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")$("accountMenu").open=false});
 $("logout").onclick=async()=>{$("accountMenu").open=false;try{await api("/logout","POST")}catch{}disconnect();loginView()};
-function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;$("accountMenu").open=false;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
+function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;if(selectedNode!=="local"&&["dashboard","projects","pm2","docker","databases","ports","terminal"].includes(page))page="servers";$("accountMenu").open=false;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
 if(page==="servers")loadServers();if(page==="settings")loadBranding();if(page==="users")loadUsers();if(page==="audit")loadAudit();if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
@@ -822,15 +827,79 @@ $("dbCreateForm").onsubmit=async e=>{
  finally{button.disabled=false;button.textContent="Criar banco"}
 };
 
+
+async function updateServerSelector(){
+ const select=$("selectedServer"),previous=selectedNode;
+ try{
+  registeredServers=await api("/servers");
+  const local=await api("/servers/local").catch(()=>({hostname:"Servidor principal",addresses:[]}));
+  select.replaceChildren();
+  const base=document.createElement("option");base.value="local";
+  base.textContent=(local.hostname||"Servidor principal")+" · Linux"+(local.addresses?.length?" · "+local.addresses[0]:"");
+  select.append(base);
+  for(const server of registeredServers){
+   if(!server.enabled)continue;
+   const option=document.createElement("option");option.value=String(server.id);
+   option.textContent=server.name+" · "+(server.addresses?.[0]||"IP pendente")+(server.online?" ●":" ○");
+   select.append(option)
+  }
+  if(previous!=="local"&&!registeredServers.some(s=>String(s.id)===previous&&s.enabled))selectedNode="local";
+  select.value=selectedNode;
+ }catch(e){select.value="local";selectedNode="local"}
+ updateServerContext();
+}
+function updateServerContext(){
+ const remote=selectedNode!=="local";
+ document.querySelectorAll(".local-nav").forEach(item=>item.classList.toggle("hide",remote));
+ $("serverContextLabel")?.remove();
+ if(remote){
+  const label=document.createElement("div");label.id="serverContextLabel";label.className="remote-notice";
+  label.textContent="Visualização remota · monitoramento somente leitura. Ações locais ficam ocultas neste contexto.";
+  $("selectedServerWorkspace").before(label);
+ }
+}
+$("selectedServer").onchange=async event=>{
+ selectedNode=event.target.value;
+ updateServerContext();
+ if(selectedNode!=="local")switchTab("servers");
+ else switchTab("dashboard");
+ if(active==="servers")await loadServers();
+};
+async function downloadAgentInstaller(){
+ const id=$("newNodeId").value,token=$("newNodeToken").value;
+ if(!id||!token){notify("O token só está disponível durante o cadastro. Cadastre um novo servidor se o perdeu.");return}
+ const button=$("downloadWindowsInstaller");button.disabled=true;
+ try{
+  const response=await fetch("/api/servers/"+encodeURIComponent(id)+"/installer",{
+   method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({token})});
+  if(!response.ok){const err=await response.json().catch(()=>({}));throw Error(err.detail||"Falha ao baixar instalador")}
+  const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");
+  link.href=url;link.download="server-manager-windows-"+id+".zip";
+  document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
+  notify("Instalador baixado. O ZIP contém o token: guarde e exclua depois de instalar.")
+ }catch(e){failure(e)}finally{button.disabled=false}
+}
+$("downloadWindowsInstaller").onclick=downloadAgentInstaller;
 async function loadServers(){
  try {
   const servers=await api("/servers");
+  registeredServers=servers;
+  const scoped=selectedNode==="local"?servers:servers.filter(item=>String(item.id)===selectedNode);
+  const workspace=$("selectedServerWorkspace");workspace.replaceChildren();
+  workspace.classList.toggle("hide",selectedNode==="local");
+  if(selectedNode!=="local"){
+   const chosen=scoped[0];
+   if(chosen){const heading=document.createElement("h2");heading.textContent="Ambiente: "+chosen.name;
+    const note=document.createElement("p");note.className="small muted";note.textContent="IP informado: "+(chosen.addresses?.join(", ")||"Aguardando agente")+" · "+(chosen.online?"Online":"Offline")+" · Inventário remoto, sem executar comandos no Linux principal.";
+    workspace.append(heading,note)}
+  }
   const root=$("serversList");root.replaceChildren();
   const local=document.createElement("article");local.className="managed-node";
   const localName=document.createElement("div");localName.className="managed-node-head";
   localName.innerHTML='<span class="node-icon">'+iconSvg("server")+'</span><div><strong>Servidor principal</strong><div class="small muted" id="serverLocalHost">Linux Manager · Linux</div></div><span class="status">Local</span>';
-  local.append(localName);root.append(local);
-  for(const server of servers){
+  local.append(localName);if(selectedNode==="local")root.append(local);
+  for(const server of scoped){
    const card=document.createElement("article");card.className="managed-node";
    const heading=document.createElement("div");heading.className="managed-node-head";
    const symbol=document.createElement("span");symbol.className="node-icon";symbol.innerHTML=iconSvg("server");
@@ -840,7 +909,7 @@ async function loadServers(){
    const status=document.createElement("span");status.className="status "+(server.online?"":"off");status.textContent=!server.enabled?"Desativado":server.online?"Online":"Offline";
    heading.append(symbol,info,status);card.append(heading);
    const details=document.createElement("div");details.className="node-details";
-   details.textContent="Último contato: "+(server.last_seen?new Date(server.last_seen*1000).toLocaleString("pt-BR"):"Nunca")+" · CPU: "+(server.cpu_percent==null?"—":server.cpu_percent+"%")+" · Memória: "+(server.memory_percent==null?"—":server.memory_percent+"%");
+   details.textContent="IP informado: "+(server.addresses?.join(", ")||"Aguardando agente")+" · Último contato: "+(server.last_seen?new Date(server.last_seen*1000).toLocaleString("pt-BR"):"Nunca")+" · CPU: "+(server.cpu_percent==null?"—":server.cpu_percent+"%")+" · Memória: "+(server.memory_percent==null?"—":server.memory_percent+"%");
    card.append(details);
    const actions=document.createElement("div");actions.className="actions";
    const view=document.createElement("button");view.type="button";view.className="ghost";view.textContent="Ver serviços";
@@ -887,15 +956,15 @@ $("addServerForm").onsubmit=async event=>{
   $("addServerDialog").close();$("addServerForm").reset();
   $("newNodeId").value=String(result.id);$("newNodeToken").value=result.token;
   $("serverAgentGuide").textContent=
-   "1. Instale Python 3.11+ no Windows Server.\n"+
-   "2. Copie agents/windows_agent.py do repositório para o servidor.\n"+
-   "3. Configure as variáveis LM_SERVER_URL (HTTPS), LM_NODE_ID ("+result.id+"), LM_NODE_TOKEN (credencial privada).\n"+
-   "4. Execute: py -3 windows_agent.py\n"+
-   "5. Após validar, configure execução automática com uma conta Windows dedicada.\n"+
-   "Não abra uma porta de administração para o agente.";
+   "1. Baixe o ZIP e extraia em pasta privada no Windows Server.\n"+
+   "2. Revise Install-Agent.ps1 e execute como Administrador.\n"+
+   "3. O instalador detecta Python, usa winget quando necessário e registra um serviço automático.\n"+
+   "4. Comando: powershell -NoProfile -ExecutionPolicy Bypass -File .\\Install-Agent.ps1\n"+
+   "5. Confirme o serviço Server Manager Agent em services.msc e apague os arquivos temporários do ZIP.\n"+
+   "O pacote contém token privado; não o compartilhe. Não abra portas de entrada para o agente.";
   $("serverAgentGuide").classList.remove("hide");
   $("serverTokenPanel").classList.remove("hide");
-  await loadServers();
+  await updateServerSelector();await loadServers();
  }catch(e){failure(e)}
 };
 async function loadPM2(){
