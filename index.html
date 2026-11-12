@@ -908,7 +908,7 @@ async function loadServers(){
      info.append(label,caption);heading.append(info);card.append(heading);
      return card
     };
-    const php=panel("Projetos PHP / XAMPP","Projetos encontrados nas pastas de htdocs do Windows Server, sem ler arquivos confidenciais.");
+    const php=panel("Projetos PHP / XAMPP","Diretórios htdocs e DocumentRoot dos VirtualHosts Apache; somente inventário.");
     const phpProjects=Array.isArray(detail.php_projects)?detail.php_projects:[];
     const count=document.createElement("span");count.className="badge";count.textContent=phpProjects.length+" projeto(s)";
     php.querySelector(".section-top").append(count);
@@ -922,7 +922,7 @@ async function loadServers(){
      }phpBody.append(tr)
     }
     if(!phpProjects.length){const tr=document.createElement("tr"),td=document.createElement("td");
-     td.colSpan=3;td.textContent="Nenhum projeto encontrado em htdocs. VirtualHosts externos não são inventariados nesta versão.";tr.append(td);phpBody.append(tr)}
+     td.colSpan=3;td.textContent="Nenhum projeto PHP encontrado nos diretórios htdocs ou nos VirtualHosts configurados.";tr.append(td);phpBody.append(tr)}
     phpTable.append(phpBody);
     const phpWrap=document.createElement("div");phpWrap.className="table-wrap";phpWrap.append(phpTable);php.append(phpWrap);
     inventory.append(php);
