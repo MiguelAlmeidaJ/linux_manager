@@ -23,6 +23,7 @@ BASE = (os.environ.get("LM_SERVER_URL") or CONFIG.get("server_url", "")).rstrip(
 NODE = str(os.environ.get("LM_NODE_ID") or CONFIG.get("node_id", ""))
 TOKEN = os.environ.get("LM_NODE_TOKEN") or CONFIG.get("token", "")
 PM2_HOME = os.environ.get("LM_AGENT_PM2_HOME") or CONFIG.get("pm2_home", "")
+PM2_COMMAND = os.environ.get("LM_AGENT_PM2_COMMAND") or CONFIG.get("pm2_command", "")
 INTERVAL = max(20, int(os.environ.get("LM_AGENT_INTERVAL", "60")))
 
 
@@ -39,7 +40,8 @@ def pm2_processes():
     env = os.environ.copy()
     if PM2_HOME:
         env["PM2_HOME"] = PM2_HOME
-    output = run(["pm2", "jlist"], 12, env=env)
+    command = ["cmd.exe", "/d", "/c", PM2_COMMAND, "jlist"] if PM2_COMMAND else ["pm2", "jlist"]
+    output = run(command, 12, env=env)
     try:
         data = json.loads(output)
         if not isinstance(data, list):
