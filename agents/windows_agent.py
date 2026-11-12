@@ -51,14 +51,28 @@ def windows_services():
         "Select-Object Name,Status | ConvertTo-Json -Compress"
     )
     result = run(["powershell", "-NoProfile", "-NonInteractive", "-Command", script])
+    services = []
     try:
         items = json.loads(result)
         if isinstance(items, dict):
             items = [items]
-        return [{"name": str(row.get("Name","")), "status": str(row.get("Status","")),
-                 "type": "Windows service"} for row in items if isinstance(row, dict)]
+        services = [{"name": str(row.get("Name","")), "status": str(row.get("Status","")),
+                     "type": "Windows service"} for row in items if isinstance(row, dict)]
     except (ValueError, TypeError):
-        return []
+        pass
+    # XAMPP may start executables without registering Windows services.
+    for executable, label in [("httpd.exe", "Apache / XAMPP"),
+                               ("mysqld.exe", "MariaDB / XAMPP")]:
+        name = executable[:-4]
+        state = run(["tasklist", "/FI", "IMAGENAME eq " + executable, "/FO", "CSV", "/NH"])
+        services.append({"name": label, "status": "Running" if executable.lower() in state.lower() else "Not detected",
+                         "type": "XAMPP process"})
+    php = os.path.join(os.environ.get("XAMPP_HOME", "C:\\xampp"), "php", "php.exe")
+    if os.path.isfile(php):
+        version = run([php, "-v"]).splitlines()
+        services.append({"name": "PHP", "status": version[0][:120] if version else "Installed",
+                         "type": "XAMPP runtime"})
+    return services
 
 
 def send():
