@@ -380,7 +380,7 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
         raise HTTPException(400, "Instalador disponível apenas para Windows Server")
     # Use source files from this local, version-controlled application.
     src = Path(__file__).resolve().parent / "agents"
-    files = ("Install-Agent.ps1", "windows_agent.py", "windows_service.py")
+    files = ("Install-Agent.ps1", "Configure-MySQL.ps1", "windows_agent.py", "windows_service.py")
     for filename in files:
         if not (src / filename).is_file() or (src / filename).is_symlink():
             raise HTTPException(503, "Arquivos de instalação não encontrados")
@@ -410,6 +410,40 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
                    "server:" + str(node_id), 200, request.client.host if request.client else "")
     return Response(archive.getvalue(), media_type="application/zip", headers={
         "Content-Disposition": 'attachment; filename="server-manager-windows-agent.zip"',
+        "Cache-Control": "no-store, private", "Pragma": "no-cache",
+        "X-Content-Type-Options": "nosniff"
+    })
+
+
+@app.get("/api/servers/{node_id}/agent-update")
+def server_agent_update_download(node_id: int, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    node = nodes.detail(node_id)
+    if node["os_type"] != "windows" or not node["enabled"]:
+        raise HTTPException(404, "Servidor Windows ativo não encontrado")
+    src = Path(__file__).resolve().parent / "agents"
+    files = ("Update-Agent.ps1", "Configure-MySQL.ps1",
+             "windows_agent.py", "windows_service.py")
+    for filename in files:
+        if not (src / filename).is_file() or (src / filename).is_symlink():
+            raise HTTPException(503, "Arquivos de atualização do agente indisponíveis")
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
+        for filename in files:
+            bundle.write(src / filename, filename)
+        bundle.writestr("LEIA-ME.txt",
+            "Server Manager - Atualizacao do agente Windows\\n"
+            "Este ZIP nao contem token, senha ou outras credenciais.\\n"
+            "1. Extraia o pacote em uma pasta temporaria privada no Windows Server.\\n"
+            "2. Execute em PowerShell elevado: .\\\\Update-Agent.ps1\\n"
+            "3. A atualizacao preserva agent.json e o token atual; reinicia o servico.\\n"
+            "4. Opcionalmente, configure a conta MySQL de monitoramento quando solicitado.\\n"
+            "5. Apague a pasta extraida apos a operacao.\\n")
+    identities.log(actor["id"], actor["username"], "server.agent.update.download",
+                   "server:" + str(node_id), 200, request.client.host if request.client else "")
+    return Response(archive.getvalue(), media_type="application/zip", headers={
+        "Content-Disposition": 'attachment; filename="server-manager-windows-update.zip"',
         "Cache-Control": "no-store, private", "Pragma": "no-cache",
         "X-Content-Type-Options": "nosniff"
     })
