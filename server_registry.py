@@ -4,6 +4,8 @@ Tokens are shown once, stored as SHA-256 hashes. Every node has a distinct key.
 Hosts/services are untrusted reported data: the server never executes them.
 """
 import hashlib
+import ipaddress
+import json
 import os
 import re
 import secrets
@@ -33,6 +35,7 @@ class Heartbeat(BaseModel):
     memory_percent: float | None = Field(default=None, ge=0, le=100)
     pm2: list[dict] = Field(default_factory=list, max_length=100)
     services: list[dict] = Field(default_factory=list, max_length=40)
+    addresses: list[str] = Field(default_factory=list, max_length=16)
 
 
 def connect():
@@ -53,8 +56,12 @@ def connect():
             cpu_percent REAL,
             memory_percent REAL,
             pm2_json TEXT NOT NULL DEFAULT '[]',
-            services_json TEXT NOT NULL DEFAULT '[]'
+            services_json TEXT NOT NULL DEFAULT '[]',
+            addresses_json TEXT NOT NULL DEFAULT '[]'
         )""")
+        columns = {row[1] for row in db.execute("PRAGMA table_info(nodes)")}
+        if "addresses_json" not in columns:
+            db.execute("ALTER TABLE nodes ADD COLUMN addresses_json TEXT NOT NULL DEFAULT '[]'")
         db.commit()
     os.chmod(NODES_DB, 0o600)
 
@@ -87,9 +94,9 @@ def _public(row, include_detail=False):
             "hostname": row["hostname"], "os_version": row["os_version"],
             "enabled": bool(row["enabled"]), "last_seen": row["last_seen"],
             "online": bool(row["enabled"] and row["last_seen"] and int(time.time())-row["last_seen"] < MAX_AGE),
-            "cpu_percent": row["cpu_percent"], "memory_percent": row["memory_percent"]}
+            "cpu_percent": row["cpu_percent"], "memory_percent": row["memory_percent"],
+            "addresses": json.loads(row["addresses_json"])}
     if include_detail:
-        import json
         item["pm2"] = json.loads(row["pm2_json"])
         item["services"] = json.loads(row["services_json"])
     return item
@@ -117,24 +124,37 @@ def _clean(items, attributes):
     return cleaned
 
 
+def verify_token(node_id, bearer):
+    if not bearer or len(bearer) > 160:
+        raise HTTPException(401, "Credencial inválida")
+    with _db() as db:
+        row = db.execute("SELECT token_hash,enabled,os_type FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not row or not row["enabled"] or not secrets.compare_digest(hashlib.sha256(bearer.encode()).hexdigest(), row["token_hash"]):
+            raise HTTPException(401, "Credencial inválida")
+        return row["os_type"]
+
+
 def heartbeat(node_id, bearer, body):
-    import json
     if not bearer.startswith("Bearer ") or len(bearer) > 200:
         raise HTTPException(401, "Token inválido")
     token = bearer[7:]
+    verify_token(node_id, token)
+    addresses = []
+    for address in body.addresses:
+        try:
+            ip = ipaddress.ip_address(address.strip())
+            if ip.is_global or ip.is_private or ip.is_link_local:
+                if not ip.is_loopback and not ip.is_multicast and not ip.is_unspecified and str(ip) not in addresses:
+                    addresses.append(str(ip))
+        except ValueError:
+            continue
     with _LOCK, _db() as db:
-        row = db.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
-        if not row or not row["enabled"]:
-            raise HTTPException(401, "Servidor não autorizado")
-        given = hashlib.sha256(token.encode()).hexdigest()
-        if not secrets.compare_digest(given, row["token_hash"]):
-            raise HTTPException(401, "Servidor não autorizado")
         pm2 = _clean(body.pm2, ("name", "status", "pid", "restarts", "memory"))
         services = _clean(body.services, ("name", "status", "type"))
         db.execute("""UPDATE nodes SET last_seen=?,hostname=?,os_version=?,cpu_percent=?,
-                   memory_percent=?,pm2_json=?,services_json=? WHERE id=?""",
+                   memory_percent=?,pm2_json=?,services_json=?,addresses_json=? WHERE id=?""",
                    (int(time.time()), body.hostname, body.os_version, body.cpu_percent,
-                    body.memory_percent, json.dumps(pm2), json.dumps(services), node_id))
+                    body.memory_percent, json.dumps(pm2), json.dumps(services), json.dumps(addresses), node_id))
         db.commit()
     return {"ok": True}
 
