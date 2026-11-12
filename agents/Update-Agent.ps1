@@ -16,7 +16,7 @@ if (-not (Test-Path -LiteralPath $config)) {
 $service = Get-Service -Name ServerManagerAgent -ErrorAction SilentlyContinue
 if (-not $service) { throw "Servico ServerManagerAgent nao encontrado." }
 $source = Split-Path -Parent $MyInvocation.MyCommand.Path
-$files = @("windows_agent.py", "windows_service.py")
+$files = @("windows_agent.py", "windows_metrics.py", "windows_service.py")
 foreach ($name in $files) {
   if (-not (Test-Path -LiteralPath (Join-Path $source $name))) {
     throw "Pacote incompleto: $name"
