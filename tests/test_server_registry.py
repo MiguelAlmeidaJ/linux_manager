@@ -45,6 +45,27 @@ class ServerRegistryTests(unittest.TestCase):
                             nodes.Heartbeat(hostname="win-app-02"))
         self.assertFalse(nodes.detail(saved["id"])["enabled"])
 
+    def test_windows_resource_metrics_sanitized_and_stored(self):
+        saved = nodes.create(nodes.NodeCreate(name="win-metrics-01"))
+        body = nodes.Heartbeat(
+            hostname="win-metrics-01", cpu_percent=18.5, memory_percent=62.1,
+            performance={
+                "cpu_percent": 18.5, "memory_percent": 62.1,
+                "memory_total": 16_000_000_000, "memory_used": 9_900_000_000,
+                "top_processes": [
+                    {"name": "httpd", "pid": 888, "cpu_percent": 16.3,
+                     "memory_bytes": 600_000_000, "secret": "DO_NOT_STORE"}],
+                "disks": [{"name": "C:", "size": 100_000_000_000,
+                           "free": 50_000_000_000, "password": "DO_NOT_STORE"}],
+                "private_key": "DO_NOT_STORE"
+            })
+        nodes.heartbeat(saved["id"], "Bearer " + saved["token"], body)
+        view = nodes.detail(saved["id"])
+        self.assertEqual(view["cpu_percent"], 18.5)
+        self.assertEqual(view["performance"]["top_processes"][0]["pid"], 888)
+        self.assertEqual(view["performance"]["disks"][0]["name"], "C:")
+        self.assertNotIn("DO_NOT_STORE", str(view))
+
     def test_windows_new_inventory_round_trip_and_sanitization(self):
         saved = nodes.create(nodes.NodeCreate(name="win-php-02"))
         body = nodes.Heartbeat(
