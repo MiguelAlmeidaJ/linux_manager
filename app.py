@@ -27,6 +27,7 @@ import database_manager as dbm
 import container_manager as cm
 import identity_store as identities
 import branding
+import server_registry as nodes
 
 ROOT = Path(os.environ.get("PROJECTS_DIR", "/srv/linux-manager/projects")).expanduser().resolve()
 ROOT.mkdir(parents=True, exist_ok=True)
@@ -320,6 +321,48 @@ def branding_reset(kind: str, request: Request):
     result = branding.reset(kind)
     identities.log(actor["id"], actor["username"], "branding.restored",
                    "branding:" + kind, 200, request.client.host if request.client else "")
+    return result
+
+
+@app.get("/api/servers")
+def server_list(request: Request):
+    assert_auth(request)
+    return nodes.listing()
+
+
+@app.get("/api/servers/{node_id}")
+def server_details(node_id: int, request: Request):
+    assert_auth(request)
+    return nodes.detail(node_id)
+
+
+@app.post("/api/servers")
+def server_create(payload: nodes.NodeCreate, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = nodes.create(payload)
+    identities.log(actor["id"], actor["username"], "server.created",
+                   "server:" + str(result["id"]), 201, request.client.host if request.client else "")
+    return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/servers/{node_id}/disable")
+def server_disable(node_id: int, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = nodes.disable(node_id)
+    identities.log(actor["id"], actor["username"], "server.disabled",
+                   "server:" + str(node_id), 200, request.client.host if request.client else "")
+    return result
+
+
+@app.post("/api/agent/nodes/{node_id}/heartbeat")
+def agent_heartbeat(node_id: int, payload: nodes.Heartbeat, request: Request):
+    # Agents never use browser sessions. Requires valid per-node token AND TLS.
+    # Do not trust X-Forwarded-Proto from an untrusted client.
+    if not secure_admin_request(request):
+        raise HTTPException(403, "Agente exige HTTPS via proxy confiável")
+    result = nodes.heartbeat(node_id, request.headers.get("authorization", ""), payload)
     return result
 
 
