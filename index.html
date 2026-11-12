@@ -993,7 +993,7 @@ async function loadServers(){
     update.onclick=async()=>{
       update.disabled=true;
       try{
-        const response=await fetch("/api/servers/"+encodeURIComponent(server.id)+"/agent-update",{credentials:"same-origin"});
+        const response=await fetch("/api/servers/"+encodeURIComponent(server.id)+"/agent-update",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:"{}"});
         if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.detail||"Não foi possível baixar a atualização")}
         const blob=await response.blob();
         const url=URL.createObjectURL(blob),link=document.createElement("a");
