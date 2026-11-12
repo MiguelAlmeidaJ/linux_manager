@@ -159,6 +159,22 @@ def heartbeat(node_id, bearer, body):
     return {"ok": True}
 
 
+def rotate_token(node_id):
+    """Reissue enrollment token; previous agent loses access immediately."""
+    token = secrets.token_urlsafe(48)
+    with _LOCK, _db() as db:
+        row = db.execute("SELECT name,os_type,enabled FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Servidor não encontrado")
+        if not row["enabled"]:
+            raise HTTPException(409, "Servidor desativado")
+        db.execute("UPDATE nodes SET token_hash=? WHERE id=?",
+                   (hashlib.sha256(token.encode()).hexdigest(), node_id))
+        db.commit()
+    return {"id": node_id, "name": row["name"], "os_type": row["os_type"],
+            "token": token, "message": "Token anterior revogado. Baixe o instalador novamente."}
+
+
 def disable(node_id):
     with _LOCK, _db() as db:
         cur = db.execute("UPDATE nodes SET enabled=0,token_hash=? WHERE id=?",
