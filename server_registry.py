@@ -221,7 +221,7 @@ ALLOWED_XAMPP_SERVICES = frozenset(("apache", "apache2.4", "mysql", "mysql80", "
 
 def queue_action(node_id, kind, target, actor):
     """Queue one typed operation; no arbitrary code or unmanaged process names."""
-    if kind not in VALID_ACTIONS and kind not in ("service_restart", "service_logs"):
+    if kind not in VALID_ACTIONS and kind not in ("service_restart", "service_logs", "xampp_restart"):
         raise HTTPException(400, "Ação remota não permitida")
     with _LOCK, _db() as db:
         node = db.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
@@ -230,7 +230,14 @@ def queue_action(node_id, kind, target, actor):
         now = int(time.time())
         if not node["last_seen"] or now - node["last_seen"] > MAX_AGE:
             raise HTTPException(409, "Agente offline; nenhuma ação será enviada")
-        if kind == "service_logs":
+        if kind == "xampp_restart":
+            names = {p.get("name", "").lower() for p in json.loads(node["services_json"])
+                     if p.get("type") == "Windows service"}
+            apache = names.intersection(("apache", "apache2.4"))
+            mysql = names.intersection(("mysql", "mysql80", "mariadb"))
+            if target != "xampp" or not apache or not mysql:
+                raise HTTPException(400, "Apache e MySQL precisam estar registrados como serviços Windows para reinício conjunto")
+        elif kind == "service_logs":
             if target not in ("apache","mysql"):
                 raise HTTPException(400, "Logs disponíveis somente para Apache ou MySQL do XAMPP")
         elif kind == "service_restart":
