@@ -603,3 +603,11 @@ O aviso genérico código 2 não comprova senha errada. O script de configuraç�
 Faça novo download de **Servidores → Baixar atualização**, extraia a nova versão e execute APENAS `powershell -NoProfile -ExecutionPolicy Bypass -File .\Configure-MySQL.ps1` num PowerShell como Administrador. Não é preciso atualizar o serviço Windows novamente nem gerar outro token. O script preserva o mysql-monitor.cnf existente.
 
 Para confirmar a porta do MySQL XAMPP, verifique o valor de port em C:\xampp\mysql\bin\my.ini. Para testar a credencial com prompt seguro, execute `& "C:\xampp\mysql\bin\mysql.exe" --protocol=TCP --host=127.0.0.1 --port=3306 --user=root --password` e entre com a senha quando solicitado (ajuste porta). Não coloque senha na linha de comando. Se a instância usa login somente via socket/named pipe, ajuste os privilégios/conta de conexão TCP local de modo controlado; não exponha o serviço à rede.
+
+### Monitoramento MySQL: conta lm_monitor já criada manualmente
+
+Não recrie a conta nem altere a senha existente. No painel, baixe o ZIP atualizado em Servidores → Baixar atualização, extraia-o em pasta privada e execute SOMENTE `powershell -NoProfile -ExecutionPolicy Bypass -File .\Configure-Existing-MySQL.ps1` em PowerShell elevado. O script pergunta o usuário (padrão lm_monitor), porta (padrão 3306) e senha atual, testa `SHOW DATABASES` pela interface TCP local e somente após confirmação grava `C:\ProgramData\ServerManager\mysql-monitor.cnf` com ACL apenas para SYSTEM e Administradores. Não executa CREATE USER, ALTER USER ou GRANT; não precisa de senha de root.
+
+Depois execute `Restart-Service ServerManagerAgent` e confira os bancos na página Servidores. Opcionalmente, `Configure-MySQL.ps1` agora pergunta primeiro se lm_monitor já existe e delega ao procedimento seguro sem alteração de usuário; criação automática de conta requer confirmação explícita em uma alternativa separada.
+
+Se a conexão falhar com 1045, a credencial e a origem da conta MySQL devem ser conferidas; MariaDB distingue 'localhost' e '127.0.0.1' dependendo do modo de autenticação e resolução. Nenhum arquivo .cnf é publicado se o teste de consulta falhar. A criação manual de usuário no banco não cria, por si só, o arquivo de credenciais local do agente.
