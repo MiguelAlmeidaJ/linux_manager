@@ -532,3 +532,35 @@ O serviço executa como LocalSystem. PM2 normalmente roda sob outra conta Window
 **Traefik:** configure TRUSTED_PROXY_IPS para o IP exato do proxy. Se a origem HTTPS não puder ser inferida, configure PUBLIC_SERVER_URL=https://lm.nivel3ti.com.br no ambiente do controlador. Não exponha a porta 8765 publicamente. O agente sempre inicia conexões HTTPS para o controlador, sem portas de administração de entrada no Windows.
 
 Para atualizar, faça git pull --ff-only como linuxmanager em /opt/linux-manager, valide a sintaxe de app.py e server_registry.py, reinicie linux-manager pelo systemd e atualize o navegador (Ctrl+Shift+R). O instalador não é assinado; avalie assinatura de código para distribuição corporativa.
+
+## Windows: portas PM2, projetos PHP e bancos XAMPP (inventário somente leitura)
+
+O agente Windows passa a enviar, a cada heartbeat, portas TCP em estado LISTEN associadas ao PID de cada aplicação PM2 e a seus processos filhos. A atribuição é feita pelos vínculos ParentProcessId obtidos via Win32_Process e pelo OwningProcess de Get-NetTCPConnection; não são inventadas portas com base em nomes ou .env. Se o processo não tiver um socket detectável, a coluna fica em branco. O PM2 do controlador Linux também expõe portas com base em psutil.
+
+Em **Processos PM2**, é possível filtrar por parte do nome, PID ou porta e por estado (Online, Stopped/Offline, Errored/Error, Outros). A contagem mostra processos filtrados/total. Os processos do Windows permanecem somente leitura.
+
+Na aba **Servidores**, ao selecionar um Windows Server, há dois inventários novos:
+
+- **Projetos PHP / XAMPP:** diretórios de projetos sob XAMPP_HOME/htdocs, identificados por arquivos PHP, composer.json ou public/index.php, e document roots cadastrados no arquivo apache/conf/extra/httpd-vhosts.conf. O agente não lê conteúdos PHP, .env ou arquivos de senha. Não há execução ou implantação de scripts.
+- **Bancos MySQL / MariaDB:** lista somente nomes de bancos que a conta de monitoramento tem permissão de visualizar. Esquemas internos information_schema, performance_schema, mysql e sys são ocultados na interface.
+
+### Configuração de acesso restrito ao MySQL no Windows
+
+O agente **não usa nem solicita credenciais root**. Para habilitar a listagem, crie uma conta específica no MySQL/MariaDB pelo console administrativo local, com somente a permissão de catálogo SHOW DATABASES (e ajuste a origem do usuário conforme a instalação, 127.0.0.1 ou localhost). Exemplo de comandos SQL, executados como administrador do banco:
+
+    CREATE USER 'lm_monitor'@'localhost' IDENTIFIED BY 'SENHA_FORTE_UNICA';
+    GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'localhost';
+
+Crie manualmente C:\ProgramData\ServerManager\mysql-monitor.cnf, com ACL de leitura somente para Administradores e SYSTEM, e conteúdo equivalente a:
+
+    [client]
+    host=127.0.0.1
+    port=3306
+    user=lm_monitor
+    password=SENHA_FORTE_UNICA
+
+O agente chama o cliente mysql.exe em XAMPP_HOME/mysql/bin com --defaults-extra-file, --protocol=TCP e SHOW DATABASES, sem colocar a senha na linha de comando nem no relatório HTTPS. Certifique-se de que a conta de monitoramento é reconhecida na origem TCP localhost/127.0.0.1. Se a credencial não existir, o painel exibe **Configuração de monitoramento necessária**; se o banco estiver indisponível, informa a falha genérica, sem publicar senhas. Proteja o arquivo .cnf e não inclua sua senha no Git.
+
+### Atualização de agentes já conectados
+
+Atualize o controlador Linux com git pull --ff-only, valide app.py, server_registry.py e reinicie o serviço linux-manager. Para receber os novos campos num Windows Server **já conectado**, copie a versão atual de agents/windows_agent.py para C:\ProgramData\ServerManager\windows_agent.py (com permissões administrativas), então execute Restart-Service ServerManagerAgent no PowerShell elevado. A credencial do agente continua válida e não precisa ser rotacionada. Alternativamente, use **Gerar instalador**, mas isso revoga o token anterior e exige reinstalar o pacote novo. A primeira versão do instalador/serviço ainda requer testes num Windows Server real.
