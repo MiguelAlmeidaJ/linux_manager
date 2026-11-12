@@ -42,7 +42,7 @@ if (-not $python) {
     throw "Python 3.11+ nao encontrado e winget indisponivel. Instale Python do python.org, depois execute novamente."
   }
   Write-Host "Instalando Python 3.12 pelo Windows Package Manager..."
-  & winget install --id Python.Python.3.12 --exact --source winget --silent --accept-source-agreements --accept-package-agreements
+  & winget install --id Python.Python.3.12 --exact --source winget --scope machine --silent --accept-source-agreements --accept-package-agreements
   if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel instalar Python. Instale Python 3.11+ manualmente." }
   $python = Find-Python
   if (-not $python) {
@@ -73,11 +73,14 @@ Copy-Item -LiteralPath (Join-Path $source "windows_service.py") -Destination $ta
 # PM2 runs per user. When installing from the PM2 owner session, this
 # points to that user's daemon; otherwise edit pm2_home after install.
 $pm2Home = if ($env:PM2_HOME) { $env:PM2_HOME } else { Join-Path $env:USERPROFILE ".pm2" }
+$pm2Command = (Get-Command pm2.cmd -ErrorAction SilentlyContinue | Select-Object -First 1).Source
+if (-not $pm2Command) { $pm2Command = "" }
 $config = @{
   server_url = [string]$data.server_url
   node_id = [int]$data.node_id
   token = [string]$data.token
   pm2_home = [string]$pm2Home
+  pm2_command = [string]$pm2Command
 } | ConvertTo-Json -Compress
 [IO.File]::WriteAllText((Join-Path $target "agent.json"), $config, [Text.UTF8Encoding]::new($false))
 & icacls (Join-Path $target "agent.json") /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' | Out-Null
@@ -95,6 +98,7 @@ if ($LASTEXITCODE -ne 0) { throw "Falha iniciando servico Windows." }
 Write-Host ""
 Write-Host "Server Manager Agent instalado e iniciado como servico automatico."
 Write-Host "PM2_HOME configurado: $pm2Home"
+Write-Host "PM2 CLI configurado: $pm2Command"
 Write-Host "Verifique em services.msc > Server Manager Agent."
 Write-Warning "APAGUE o ZIP e a pasta extraida depois da instalacao: eles contem o token de acesso."
-Write-Warning "Se o PM2 estiver em outra conta Windows, ajuste pm2_home em $target\agent.json e reinicie o servico."
+Write-Warning "Se o PM2 estiver em outra conta Windows, ajuste pm2_home e pm2_command em $target\agent.json e reinicie o servico."
