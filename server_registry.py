@@ -39,6 +39,7 @@ class Heartbeat(BaseModel):
     addresses: list[str] = Field(default_factory=list, max_length=16)
     php_projects: list[dict] = Field(default_factory=list, max_length=100)
     mysql: dict = Field(default_factory=dict)
+    performance: dict = Field(default_factory=dict)
 
 
 def connect():
@@ -62,7 +63,8 @@ def connect():
             services_json TEXT NOT NULL DEFAULT '[]',
             addresses_json TEXT NOT NULL DEFAULT '[]',
             php_projects_json TEXT NOT NULL DEFAULT '[]',
-            mysql_json TEXT NOT NULL DEFAULT '{}'
+            mysql_json TEXT NOT NULL DEFAULT '{}',
+            performance_json TEXT NOT NULL DEFAULT '{}'
         )""")
         columns = {row[1] for row in db.execute("PRAGMA table_info(nodes)")}
         if "addresses_json" not in columns:
@@ -71,6 +73,8 @@ def connect():
             db.execute("ALTER TABLE nodes ADD COLUMN php_projects_json TEXT NOT NULL DEFAULT '[]'")
         if "mysql_json" not in columns:
             db.execute("ALTER TABLE nodes ADD COLUMN mysql_json TEXT NOT NULL DEFAULT '{}'")
+        if "performance_json" not in columns:
+            db.execute("ALTER TABLE nodes ADD COLUMN performance_json TEXT NOT NULL DEFAULT '{}'")
         db.commit()
     os.chmod(NODES_DB, 0o600)
 
@@ -115,6 +119,7 @@ def _public(row, include_detail=False):
         item["services"] = json.loads(row["services_json"])
         item["php_projects"] = json.loads(row["php_projects_json"])
         item["mysql"] = json.loads(row["mysql_json"])
+        item["performance"] = json.loads(row["performance_json"])
     return item
 
 
@@ -165,6 +170,34 @@ def verify_token(node_id, bearer):
         return row["os_type"]
 
 
+def _performance(payload):
+    """Allowlist numeric Windows metrics; discard arbitrary/untrusted fields."""
+    def positive(value, limit=2**50):
+        try:
+            n = float(value)
+            return round(n, 1) if 0 <= n <= limit and n == n else 0
+        except (ValueError, TypeError, OverflowError):
+            return 0
+    top = []
+    for row in (payload.get("top_processes") or [])[:30] if isinstance(payload.get("top_processes"), list) else []:
+        if isinstance(row, dict):
+            top.append({"name": str(row.get("name", ""))[:90],
+                        "pid": int(positive(row.get("pid"), 2**31)),
+                        "cpu_percent": positive(row.get("cpu_percent"), 100),
+                        "memory_bytes": int(positive(row.get("memory_bytes")))})
+    disks = []
+    for row in (payload.get("disks") or [])[:12] if isinstance(payload.get("disks"), list) else []:
+        if isinstance(row, dict):
+            disks.append({"name": str(row.get("name", ""))[:10],
+                          "size": int(positive(row.get("size"))),
+                          "free": int(positive(row.get("free")))})
+    return {"cpu_percent": positive(payload.get("cpu_percent"), 100),
+            "memory_percent": positive(payload.get("memory_percent"), 100),
+            "memory_total": int(positive(payload.get("memory_total"))),
+            "memory_used": int(positive(payload.get("memory_used"))),
+            "top_processes": top, "disks": disks}
+
+
 def heartbeat(node_id, bearer, body):
     if not bearer.startswith("Bearer ") or len(bearer) > 200:
         raise HTTPException(401, "Token inválido")
@@ -189,13 +222,14 @@ def heartbeat(node_id, bearer, body):
         status = str(mysql.get("status", "unavailable"))
         if status not in ("ok", "unavailable", "configuration_required", "not_installed"):
             status = "unavailable"
+        performance = _performance(body.performance)
         mysql_clean = {"status": status, "engine": "MySQL/MariaDB",
             "databases": _clean(mysql.get("databases", [])[:100] if isinstance(mysql.get("databases"), list) else [], ("name",))}
         db.execute("""UPDATE nodes SET last_seen=?,hostname=?,os_version=?,cpu_percent=?,
-                   memory_percent=?,pm2_json=?,services_json=?,addresses_json=?,php_projects_json=?,mysql_json=? WHERE id=?""",
+                   memory_percent=?,pm2_json=?,services_json=?,addresses_json=?,php_projects_json=?,mysql_json=?,performance_json=? WHERE id=?""",
                    (int(time.time()), body.hostname, body.os_version, body.cpu_percent,
                     body.memory_percent, json.dumps(pm2), json.dumps(services), json.dumps(addresses),
-                    json.dumps(php), json.dumps(mysql_clean), node_id))
+                    json.dumps(php), json.dumps(mysql_clean), json.dumps(performance), node_id))
         db.commit()
     return {"ok": True}
 
