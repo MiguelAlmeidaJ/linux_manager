@@ -564,3 +564,34 @@ O agente chama o cliente mysql.exe em XAMPP_HOME/mysql/bin com --defaults-extra-
 ### Atualização de agentes já conectados
 
 Atualize o controlador Linux com git pull --ff-only, valide app.py, server_registry.py e reinicie o serviço linux-manager. Para receber os novos campos num Windows Server **já conectado**, copie a versão atual de agents/windows_agent.py para C:\ProgramData\ServerManager\windows_agent.py (com permissões administrativas), então execute Restart-Service ServerManagerAgent no PowerShell elevado. A credencial do agente continua válida e não precisa ser rotacionada. Alternativamente, use **Gerar instalador**, mas isso revoga o token anterior e exige reinstalar o pacote novo. A primeira versão do instalador/serviço ainda requer testes num Windows Server real.
+
+## Atualizar agente pelo painel + provisionar monitoramento MySQL na instalação
+
+Na página **Servidores**, cada Windows Server ativo tem **Baixar atualização**. O botão gera um ZIP administrativo contendo Update-Agent.ps1, Configure-MySQL.ps1, windows_agent.py e windows_service.py. Diferentemente de **Gerar instalador**, esse pacote NÃO inclui token, NÃO rotaciona credenciais e NÃO altera agent.json. A atualização para temporariamente ServerManagerAgent, salva cópia dos scripts existentes, substitui os arquivos, inicia o serviço e tenta restaurar os scripts anteriores em caso de falha.
+
+No Windows Server, extraia o ZIP numa pasta privada, leia os scripts e execute PowerShell como Administrador:
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-Agent.ps1
+
+Para atualizar sem abrir o assistente opcional MySQL, use o parâmetro -SkipMySQL. A conta do agente e o serviço automático continuam existentes. O pacote de atualização só está disponível a contas admin por HTTPS confiável e o download é auditado.
+
+### MySQL / MariaDB do XAMPP
+
+O novo instalador também inclui Configure-MySQL.ps1. Quando mysql.exe do XAMPP estiver presente e mysql-monitor.cnf ainda não existir, o assistente oferece criar a conta de monitoramento automaticamente (perguntando antes). São necessários privilégios administrativos **no banco de dados**: informe usuário (padrão root) e senha do banco LOCALMENTE no PowerShell Windows. Nada é enviado ao painel central.
+
+O script gera uma senha aleatória única de 48 caracteres hexadecimais, cria/atualiza somente lm_monitor@localhost e lm_monitor@127.0.0.1, e concede SHOW DATABASES no catálogo. Esse privilégio permite enumerar bancos, mas não ler tabelas, alterar registros nem criar schemas. O script testa o login da conta criada e grava C:\ProgramData\ServerManager\mysql-monitor.cnf, com ACL restrita a Administradores e SYSTEM. Senhas não são colocadas nos argumentos do processo mysql.exe nem nos logs do agente; um arquivo temporário de credenciais administrativas é protegido e removido após o provisionamento.
+
+Se o XAMPP estiver em outro local, defina XAMPP_HOME como variável de ambiente do PowerShell administrativo antes da instalação. Se mysql.exe não existir, o instalador não tenta instalar o XAMPP ou alterar o MySQL. Se o arquivo mysql-monitor.cnf já existir, é preservado, sem alterar a senha atual. Se a criação de usuário falhar, o agente continua funcionando e a listagem MySQL informa que falta configurar o monitoramento.
+
+Para reexecutar apenas o provisionamento, abra PowerShell como Administrador e execute Configure-MySQL.ps1 a partir do ZIP (ou da versão revisada do repositório), depois Restart-Service ServerManagerAgent. Não forneça root remoto nem abra 3306 na internet. Para grandes ambientes, utilize uma conta local administrada por cofre de segredos e políticas de rotação.
+
+### Atualizar o controlador Linux
+
+    sudo -iu linuxmanager
+    cd /opt/linux-manager
+    git pull --ff-only
+    .venv/bin/python -m py_compile app.py server_registry.py
+    exit
+    sudo systemctl restart linux-manager
+
+Atualize o navegador com Ctrl+Shift+R e abra Servidores. O instalador e o provisionamento MySQL ainda precisam de validação no Windows Server real antes de serem considerados prontos para produção.
