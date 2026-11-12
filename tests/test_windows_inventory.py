@@ -31,6 +31,25 @@ class WindowsInventoryTests(unittest.TestCase):
         self.assertEqual(report[0]["ports"], [{"port": 3000, "address": "0.0.0.0"}])
         self.assertEqual(report[1]["ports"], [{"port": 3001, "address": "127.0.0.1"}])
 
+    def test_php_projects_include_htdocs_and_apache_virtual_hosts(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            htdocs = root / "htdocs"
+            website = htdocs / "portal"
+            website.mkdir(parents=True)
+            (website / "index.php").write_text("<?php")
+            (website / ".env").write_text("DB_PASSWORD=DO_NOT_READ")
+            vhost_site = root / "sites" / "custom"
+            vhost_site.mkdir(parents=True)
+            conf = root / "apache" / "conf" / "extra" / "httpd-vhosts.conf"
+            conf.parent.mkdir(parents=True)
+            conf.write_text('<VirtualHost *:80>\nServerName example.test\nDocumentRoot "' +
+                            str(vhost_site) + '"\n</VirtualHost>\n')
+            with patch.dict(os.environ, {"XAMPP_HOME": str(root)}):
+                result = agent.php_projects()
+            self.assertEqual({p["name"] for p in result}, {"portal", "example.test"})
+            self.assertNotIn("DO_NOT_READ", str(result))
+
     def test_mysql_does_not_attempt_login_without_readonly_config(self):
         with tempfile.TemporaryDirectory() as folder:
             xampp = Path(folder)
