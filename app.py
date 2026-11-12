@@ -360,7 +360,7 @@ def server_disable(node_id: int, request: Request):
 def agent_heartbeat(node_id: int, payload: nodes.Heartbeat, request: Request):
     # Agents never use browser sessions. Requires valid per-node token AND TLS.
     # Do not trust X-Forwarded-Proto from an untrusted client.
-    if not (request.url.scheme == "https" or _secure_proxy_origin(request)):
+    if not (request.url.scheme == "https" or (_trusted_proxy(request.client.host if request.client else "") and request.headers.get("x-forwarded-proto", "").lower() == "https" and bool(request.headers.get("host")) and request.headers.get("x-forwarded-host", request.headers.get("host")) == request.headers.get("host"))):
         raise HTTPException(403, "Agente exige HTTPS via proxy confiável")
     result = nodes.heartbeat(node_id, request.headers.get("authorization", ""), payload)
     return result
