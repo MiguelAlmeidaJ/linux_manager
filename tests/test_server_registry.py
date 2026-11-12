@@ -45,6 +45,27 @@ class ServerRegistryTests(unittest.TestCase):
                             nodes.Heartbeat(hostname="win-app-02"))
         self.assertFalse(nodes.detail(saved["id"])["enabled"])
 
+    def test_windows_new_inventory_round_trip_and_sanitization(self):
+        saved = nodes.create(nodes.NodeCreate(name="win-php-02"))
+        body = nodes.Heartbeat(
+            hostname="win-php-02",
+            pm2=[{"name": "web", "pid": "4500", "status": "online",
+                  "ports": [{"port": 3000, "address": "0.0.0.0"},
+                            {"port": 3001, "address": "127.0.0.1"},
+                            {"port": 88888, "address": "127.0.0.1"}],
+                  "secret": "do-not-store"}],
+            php_projects=[{"name": "website", "type": "PHP", "path": "C:\\xampp\\htdocs\\website",
+                           "secret": "private"}],
+            mysql={"status": "ok", "password": "do-not-store",
+                   "databases": [{"name": "website_db", "password": "hidden"}]})
+        nodes.heartbeat(saved["id"], "Bearer " + saved["token"], body)
+        data = nodes.detail(saved["id"])
+        self.assertEqual([p["port"] for p in data["pm2"][0]["ports"]], [3000, 3001])
+        self.assertEqual(data["php_projects"][0]["name"], "website")
+        self.assertEqual(data["mysql"]["databases"], [{"name": "website_db"}])
+        self.assertNotIn("do-not-store", str(data))
+        self.assertNotIn("hidden", str(data))
+
     def test_network_ips_are_validated_and_stored_without_loopback(self):
         saved = nodes.create(nodes.NodeCreate(name="win-ips-01"))
         body = nodes.Heartbeat(hostname="win-ips-01",
