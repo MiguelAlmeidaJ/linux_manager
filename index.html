@@ -289,6 +289,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 .remote-notice{background:#eef5ff;border:1px solid #dbe8fd;padding:12px 15px;margin:0 0 16px;border-radius:9px;font-size:12px;color:#39669d}
 #selectedServerWorkspace:not(.hide){margin-bottom:17px;background:#f7faff;border:1px solid #e5ecf6;padding:19px;border-radius:12px}
 @media(max-width:720px){.server-switch select{max-width:150px}}
+.pm2-filters{display:grid;grid-template-columns:minmax(200px,1fr) 195px;gap:13px;margin:13px 0 20px}.pm2-filters .field{margin:0;font-size:11px}.pm2-filters input,.pm2-filters select{margin-top:7px}.pm2-port-cell{max-width:220px;min-width:90px}.pm2-port-chip{display:inline-block;border-radius:6px;background:#edf4ff;color:#2e5eab;border:1px solid #dce7fa;padding:4px 7px;font-size:10px;font-weight:700;margin:2px 4px 2px 0;font-variant-numeric:tabular-nums}@media(max-width:720px){.pm2-filters{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -370,7 +371,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="wide"><button>Clonar repositório</button><p class="help">Após clonar, configure runtime, porta e deploy no cartão da aplicação.</p></div></form></div>
 <div id="projectList"><div class="empty"><span class="glyph">◇</span>Carregando aplicações...</div></div>
 </section>
-<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><p id="pm2ScopeInfo" class="small muted">Servidor principal</p><div id="pm2Overview" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px"></div><div class="panel"><div class="section-top"><h2>Processos em execução</h2><span class="badge" id="pm2Count">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
+<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><p id="pm2ScopeInfo" class="small muted">Servidor principal</p><div id="pm2Overview" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px"></div><div class="panel"><div class="section-top"><h2>Processos em execução</h2><span class="badge" id="pm2Count">—</span></div><div class="pm2-filters"><label class="field">Pesquisar por nome, porta ou PID<input id="pm2Search" placeholder="Ex.: nutrir, 3001, 6616" autocomplete="off"></label><label class="field">Status<select id="pm2StatusFilter"><option value="">Todos</option><option value="online">Online</option><option value="stopped">Stopped / Parado</option><option value="errored">Error / Erro</option><option value="other">Outros</option></select></label></div><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>Portas TCP</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
 <section id="docker" class="hide">
 <div class="heading"><div><h1>Containers e serviços</h1><p>Gerencie serviços compartilhados sem interromper containers de outras aplicações.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div>
 <div class="panel"><div class="section-top"><div><h2>Catálogo de serviços</h2><p class="small muted">Instâncias compartilhadas · acesso local · volumes persistentes</p></div><span class="badge">Gerenciado</span></div><div id="managedServiceList" class="service-grid"></div><div class="help" style="margin-top:15px">SQL Server e serviços adicionais exigirão implantação dedicada e dimensionamento de recursos. Nenhum serviço será exposto publicamente pelo painel.</div></div>
@@ -982,47 +983,79 @@ $("addServerForm").onsubmit=async event=>{
   await updateServerSelector();await loadServers();
  }catch(e){failure(e)}
 };
+let pm2Entries=[],pm2Remote=false;
+function filterPM2(){
+ const query=$("pm2Search").value.trim().toLowerCase(),status=$("pm2StatusFilter").value;
+ const matches=pm2Entries.filter(p=>{
+  const state=String(p.pm2_env?.status||"").toLowerCase();
+  const stateMatches=!status||(status==="stopped"?["stopped","stopping","offline"].includes(state):
+   status==="errored"?["errored","error","erroring"].includes(state):
+   status==="other"?!["online","stopped","stopping","offline","errored","error","erroring"].includes(state):state==="online");
+  const searchable=[p.name,p.pid,...(p.ports||[]).map(e=>e.port)].join(" ").toLowerCase();
+  return stateMatches&&(!query||searchable.includes(query))
+ });
+ $("pm2Count").textContent=matches.length+" / "+pm2Entries.length+" processos";
+ const root=$("pm2Table");root.replaceChildren();
+ if(!matches.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=8;td.textContent="Nenhum processo corresponde aos filtros";tr.append(td);root.append(tr);return}
+ for(const p of matches){
+  const tr=document.createElement("tr");
+  const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",null,
+   p.monit?.cpu==null?"—":p.monit.cpu+"%",
+   ((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
+  fields.forEach((value,i)=>{
+   const td=document.createElement("td");
+   if(i===1){const badge=document.createElement("span");badge.className="status "+(value==="online"?"":"off");badge.textContent=String(value);td.append(badge)}
+   else if(i===3){
+    td.className="pm2-port-cell";
+    const ports=Array.isArray(p.ports)?p.ports:[];
+    if(!ports.length){td.textContent="—";td.title="Portas não identificadas; não significa que o processo não use rede"}
+    for(const endpoint of ports){
+     const chip=document.createElement("span");chip.className="pm2-port-chip";
+     const address=String(endpoint.address||"");
+     chip.textContent=String(endpoint.port);
+     chip.title=address+(["127.0.0.1","::1"].includes(address)?" · acesso local":" · interface de rede");
+     td.append(chip)
+    }
+   }else{td.textContent=String(value);if(i===0)td.style.fontWeight="650"}
+   tr.append(td)
+  });
+  const td=document.createElement("td"),actions=document.createElement("div");actions.className="pm2-acts";
+  for(const [label,action] of pm2Remote?[]:[["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
+   const button=document.createElement("button");button.type="button";button.className="ghost";button.textContent=label;
+   button.disabled=(action==="start"&&p.pm2_env?.status==="online")||(action==="stop"&&p.pm2_env?.status!=="online");
+   button.onclick=async()=>{
+    if(action==="stop"&&!confirm("Parar o processo "+p.name+"?"))return;
+    button.disabled=true;
+    try{const result=await api("/pm2/processes/"+encodeURIComponent(p.name)+"/"+action,"POST",{});
+     if(action==="logs")resultMessage(result.output||"");
+     else{notify("Processo "+p.name+": "+action);await loadPM2()}
+    }catch(e){failure(e)}finally{button.disabled=false}
+   };actions.append(button)
+  }
+  td.append(actions);tr.append(td);root.append(tr)
+ }
+}
+$("pm2Search").oninput=filterPM2;
+$("pm2StatusFilter").onchange=filterPM2;
 async function loadPM2(){
- try {
+ try{
   const remote=selectedNode!=="local";
-  let processes=[];
+  pm2Remote=remote;
   if(remote){
    const detail=await api("/servers/"+encodeURIComponent(selectedNode));
    $("pm2ScopeInfo").textContent="Servidor: "+detail.name+" · "+(detail.addresses?.join(", ")||"IP não informado")+" · remoto, somente leitura";
-   processes=(detail.pm2||[]).map(p=>({name:p.name,pid:p.pid,
-     pm2_env:{status:p.status,restart_time:Number(p.restarts)||0},
-     monit:{cpu:null,memory:Number(p.memory)||0}}));
+   pm2Entries=(detail.pm2||[]).map(p=>({name:p.name,pid:p.pid,ports:p.ports||[],
+    pm2_env:{status:p.status,restart_time:Number(p.restarts)||0},
+    monit:{cpu:null,memory:Number(p.memory)||0}}))
   }else{
-   processes=await api("/pm2");
+   pm2Entries=await api("/pm2");
    $("pm2ScopeInfo").textContent="Servidor principal · controles locais habilitados";
   }
-  const online=processes.filter(p=>p.pm2_env?.status==="online").length;
-  $("pm2Count").textContent=processes.length+" processos";
-  $("pm2Overview").innerHTML=[["Processos",processes.length],["Online",online],["Reinícios",processes.reduce((a,p)=>a+(p.pm2_env?.restart_time||0),0)]].map(([label,value])=>'<div class="pm2-stat"><span>'+label+'</span><strong>'+value+'</strong></div>').join("");
-  const root=$("pm2Table");root.replaceChildren();
-  if(!processes.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.textContent="Nenhum processo PM2";tr.append(td);root.append(tr)}
-  for(const p of processes){
-   const tr=document.createElement("tr");
-   const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",(p.monit?.cpu==null?"—":p.monit.cpu+"%"),((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
-   fields.forEach((value,i)=>{const td=document.createElement("td");
-    if(i===1){const tag=document.createElement("span");tag.className="status "+(value==="online"?"":"off");tag.textContent=String(value);td.append(tag)}
-    else{td.textContent=String(value);if(i===0)td.style.fontWeight="650"}
-    tr.append(td)});
-   const td=document.createElement("td"),actions=document.createElement("div");actions.className="pm2-acts";
-   for(const [label,action] of remote?[]:[["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
-    const button=document.createElement("button");button.type="button";button.className="ghost";button.textContent=label;
-    button.disabled=(action==="start"&&p.pm2_env?.status==="online")||(action==="stop"&&p.pm2_env?.status!=="online");
-    button.onclick=async()=>{
-     if(action==="stop"&&!confirm("Parar o processo "+p.name+"?"))return;
-     button.disabled=true;
-     try{const result=await api("/pm2/processes/"+encodeURIComponent(p.name)+"/"+action,"POST",{});
-      if(action==="logs"){resultMessage(result.output||"")}else{notify("Processo "+p.name+": "+action);await loadPM2()}
-     }catch(e){failure(e)}finally{button.disabled=false}
-    };
-    actions.append(button)
-   }
-   td.append(actions);tr.append(td);root.append(tr)
-  }
+  const online=pm2Entries.filter(p=>p.pm2_env?.status==="online").length;
+  $("pm2Overview").innerHTML=[["Processos",pm2Entries.length],["Online",online],
+   ["Reinícios",pm2Entries.reduce((a,p)=>a+(p.pm2_env?.restart_time||0),0)]]
+   .map(([label,value])=>'<div class="pm2-stat"><span>'+label+'</span><strong>'+value+'</strong></div>').join("");
+  filterPM2()
  }catch(e){failure(e)}
 }
 function resultMessage(value){result(value);$("operationPanel").scrollIntoView({block:"nearest",behavior:"smooth"})}
