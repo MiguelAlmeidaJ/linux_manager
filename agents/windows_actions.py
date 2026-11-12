@@ -7,6 +7,7 @@ Windows services are manageable. The controller never sends shell commands.
 import json
 import os
 import re
+from pathlib import Path
 import subprocess
 
 PROCESS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$")
@@ -50,6 +51,30 @@ def perform(action, pm2_home="", pm2_command=""):
             # 'reload' is a PM2 reload, not a Git update or deployment.
             args = ["logs", target, "--nostream", "--lines", "80", "--raw"] if kind == "logs" else [kind, target]
             ok, output = _run([pm2_command, *args], env=env, timeout=35)
+        elif kind == "service_logs":
+            if target not in ("apache", "mysql"):
+                raise RuntimeError("Logs disponíveis apenas para Apache e MySQL")
+            root = Path(os.environ.get("XAMPP_HOME", r"C:\xampp"))
+            if target == "apache":
+                paths = [root / "apache" / "logs" / "error.log"]
+            else:
+                directory = root / "mysql" / "data"
+                paths = list(directory.glob("*.err"))[:6] if directory.is_dir() else []
+                paths += [root / "mysql" / "data" / "mysql_error.log"]
+            outputs = []
+            for path in paths:
+                if path.is_symlink() or not path.is_file():
+                    continue
+                try:
+                    with path.open("rb") as stream:
+                        stream.seek(0, 2)
+                        stream.seek(max(0, stream.tell()-16000))
+                        chunk = stream.read(16000).decode("utf-8", errors="replace")
+                    outputs.append(str(path.name) + "\n" + chunk[-6000:])
+                except OSError:
+                    continue
+            ok = bool(outputs)
+            output = "\n\n".join(outputs)[-10000:] if outputs else "Arquivo de log do XAMPP não localizado"
         elif kind == "service_restart":
             if target.lower() not in SERVICE_NAMES:
                 raise RuntimeError("Somente serviços Apache/MySQL podem ser reiniciados")
