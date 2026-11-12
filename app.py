@@ -380,7 +380,7 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
         raise HTTPException(400, "Instalador disponível apenas para Windows Server")
     # Use source files from this local, version-controlled application.
     src = Path(__file__).resolve().parent / "agents"
-    files = ("Install-Agent.ps1", "Configure-MySQL.ps1", "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_service.py")
+    files = ("Install-Agent.ps1", "Configure-MySQL.ps1", "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_metrics.py", "windows_service.py")
     for filename in files:
         if not (src / filename).is_file() or (src / filename).is_symlink():
             raise HTTPException(503, "Arquivos de instalação não encontrados")
@@ -394,6 +394,11 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as target:
         for filename in files:
             target.write(src / filename, filename)
+        # Optional Windows CI artifact installed by the operator under agents/bin.
+        # Do not manufacture or rename a ZIP or PowerShell file to .exe.
+        executable = src / "bin" / "ServerManager.exe"
+        if executable.is_file() and not executable.is_symlink():
+            target.write(executable, "ServerManager.exe")
         target.writestr("enrollment.json", json.dumps({
             "server_url": base_url, "node_id": node_id, "token": payload.token
         }, ensure_ascii=False))
@@ -401,7 +406,8 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
             "Server Manager - agente Windows\n"
             "PACOTE CONFIDENCIAL: contém token de autenticação.\n"
             "1. Extraia o ZIP em pasta privada no Windows Server.\n"
-            "2. Revise Install-Agent.ps1 e execute em PowerShell como Administrador.\n"
+            "2. Se ServerManager.exe estiver no ZIP, execute-o como Administrador.\n"
+            "   Caso contrario, revise Install-Agent.ps1 e execute via PowerShell.\n"
             "3. Para executar: powershell -NoProfile -ExecutionPolicy Bypass -File .\\Install-Agent.ps1\n"
             "4. Confirme em services.msc: Server Manager Agent (Automático).\n"
             "5. Apague o ZIP e a pasta extraída após instalar.\n"
@@ -424,7 +430,7 @@ def server_agent_update_download(node_id: int, request: Request):
         raise HTTPException(404, "Servidor Windows ativo não encontrado")
     src = Path(__file__).resolve().parent / "agents"
     files = ("Update-Agent.ps1", "Configure-MySQL.ps1",
-             "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_service.py")
+             "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_metrics.py", "windows_service.py")
     for filename in files:
         if not (src / filename).is_file() or (src / filename).is_symlink():
             raise HTTPException(503, "Arquivos de atualização do agente indisponíveis")
