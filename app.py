@@ -415,6 +415,16 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
     })
 
 
+@app.post("/api/servers/{node_id}/rotate-token")
+def server_rotate_token(node_id: int, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    result = nodes.rotate_token(node_id)
+    identities.log(actor["id"], actor["username"], "server.token.rotated",
+                   "server:" + str(node_id), 200, request.client.host if request.client else "")
+    return JSONResponse(result, headers={"Cache-Control": "no-store, private"})
+
+
 @app.post("/api/servers/{node_id}/disable")
 def server_disable(node_id: int, request: Request):
     actor = assert_admin(request)
