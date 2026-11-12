@@ -908,6 +908,25 @@ function fillRemoteTable(body, rows, fields, emptyMessage){
   const td=document.createElement("td");td.textContent=String(value??"—");tr.append(td)}root.append(tr)}
 }
 
+async function watchRemoteAction(id,node,attempt=0){
+ if(String(selectedNode)!==String(node)||attempt>=18)return;
+ await new Promise(resolve=>setTimeout(resolve,10000));
+ if(String(selectedNode)!==String(node))return;
+ try{
+  const actions=await api("/servers/"+encodeURIComponent(node)+"/actions");
+  const current=actions.find(item=>item.id===id);
+  if(["servers","pm2","remotexampp"].includes(active))await loadRemoteActionHistory();
+  if(current&&["done","error","expired"].includes(current.state)){
+   notify(current.state==="done"?"Ação remota concluída.":"Ação remota não concluída; confira o resultado.");
+   if(current.kind==="logs"||current.kind==="service_logs"){
+    const target=[...$("remoteActionHistory").querySelectorAll("details")];
+    if(target.length)target[0].open=true
+   }
+   if(active==="pm2")await loadPM2();
+   if(active==="remotexampp")await loadRemotePage("remotexampp");
+  }else watchRemoteAction(id,node,attempt+1)
+ }catch(e){if(attempt<17)watchRemoteAction(id,node,attempt+1)}
+}
 async function runRemoteAction(kind,target){
  if(selectedNode==="local"||currentRole!=="admin")return;
  const friendly={start:"iniciar",stop:"parar",restart:"reiniciar",reload:"recarregar",logs:"consultar logs de",service_restart:"reiniciar serviço",service_logs:"consultar logs de",xampp_restart:"reiniciar Apache e MySQL do"};
@@ -917,6 +936,7 @@ async function runRemoteAction(kind,target){
   const response=await api("/servers/"+encodeURIComponent(selectedNode)+"/actions","POST",{kind,target});
   notify("Ação enviada para a fila do agente: "+verb+" "+target);
   await loadRemoteActionHistory();
+  watchRemoteAction(response.id,selectedNode);
   return response
  }catch(e){failure(e)}
 }
