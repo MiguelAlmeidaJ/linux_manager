@@ -415,7 +415,7 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
     })
 
 
-@app.get("/api/servers/{node_id}/agent-update")
+@app.post("/api/servers/{node_id}/agent-update")
 def server_agent_update_download(node_id: int, request: Request):
     actor = assert_admin(request)
     require_secure_database_admin(request)
