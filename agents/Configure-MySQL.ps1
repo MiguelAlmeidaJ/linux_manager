@@ -22,6 +22,206 @@ if ([string]::IsNullOrWhiteSpace($adminUser)) { $adminUser = "root" }
 if ($adminUser -notmatch '^[A-Za-z0-9_]{1,32}$') {
   Write-Warning "Nome de usuario invalido."; return
 }
+# XAMPP often uses a non-default port. Read configured mysqld port first.
+$port = 3306
+$ini = Join-Path $xampp "mysql\bin\my.ini"
+if (Test-Path -LiteralPath $ini) {
+  $section = ""
+  foreach ($line in (Get-Content -LiteralPath $ini -ErrorAction SilentlyContinue)) {
+    $trimmed = $line.Trim()
+    if ($trimmed -match '^\[([^\]]+)\]') { $section = $Matches[1].ToLowerInvariant(); continue }
+    if ($section -eq "mysqld" -and $trimmed -match '^port\s*=\s*([0-9]{2,5})(?:\s*[;#].*)?
+$ptr = [IntPtr]::Zero
+$adminPassword = ""
+try {
+  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($adminSecure)
+  $adminPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+} finally {
+  if ($ptr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+}
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+function Quote-Option([string]$value) {
+  if ($value -match '[\r\n]') { throw "Quebras de linha nao suportadas." }
+  return '"' + $value.Replace('\', '\\').Replace('"', '\"') + '"'
+}
+function Protect-File([string]$path) {
+  & icacls.exe $path /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Falha protegendo arquivo." }
+}
+function Invoke-LocalMySQL([string]$config, [string]$sql) {
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo.FileName = $mysql
+  $proc.StartInfo.Arguments = ('--defaults-extra-file="' + $config + '" --protocol=TCP --connect-timeout=5 --batch --skip-column-names')
+  $proc.StartInfo.UseShellExecute = $false
+  $proc.StartInfo.CreateNoWindow = $true
+  $proc.StartInfo.RedirectStandardInput = $true
+  $proc.StartInfo.RedirectStandardOutput = $true
+  $proc.StartInfo.RedirectStandardError = $true
+  if (-not $proc.Start()) { throw "Cliente MySQL nao iniciado." }
+  try {
+    $proc.StandardInput.WriteLine($sql)
+    $proc.StandardInput.Close()
+    $stdout = $proc.StandardOutput.ReadToEnd()
+    $stderr = $proc.StandardError.ReadToEnd()
+    if (-not $proc.WaitForExit(15000)) {
+      try { $proc.Kill() } catch {}
+      throw "Timeout MySQL."
+    }
+    if ($proc.ExitCode -ne 0) {
+      # Never print raw stderr: some MySQL messages may contain sensitive values.
+      $errorNumber = "desconhecido"
+      if ($stderr -match '(?i)(?:ERROR|ERRORCODE)\s+([0-9]{3,5})') { $errorNumber = $Matches[1] }
+      $reason = switch ($errorNumber) {
+        "1045" { "Acesso negado: verifique usuario, senha e origem localhost/127.0.0.1." }
+        "1044" { "Conta conectou, mas nao possui privilegios suficientes." }
+        "2002" { "Falha de conexao: servidor indisponivel ou protocolo incorreto." }
+        "2003" { "Falha de conexao TCP: porta ou endereco incorreto." }
+        "1064" { "Erro SQL: versao/sintaxe incompativel." }
+        default { "Consulte o log local do MySQL; confirme o metodo de autenticacao." }
+      }
+      throw ("MySQL exit=" + $proc.ExitCode + "; erro MySQL=" + $errorNumber + ". " + $reason)
+    }
+    return $stdout.Trim()
+  } finally { $proc.Dispose() }
+}
+$temporary = Join-Path $base ("mysql-admin-" + [Guid]::NewGuid().ToString("N") + ".cnf")
+$testConfig = Join-Path $base ("mysql-monitor-" + [Guid]::NewGuid().ToString("N") + ".cnf")
+$password = ""
+$stage = "validar conexao administrativa"
+try {
+  $lines = @("[client]", "host=127.0.0.1", "port=$port", "user=" + (Quote-Option $adminUser), "password=" + (Quote-Option $adminPassword))
+  [IO.File]::WriteAllText($temporary, ($lines -join [Environment]::NewLine), $utf8)
+  $adminPassword = ""
+  Protect-File $temporary
+  [void](Invoke-LocalMySQL $temporary "SELECT 1;")
+  $bytes = New-Object byte[] 24
+  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+  $password = ([BitConverter]::ToString($bytes)).Replace("-", "").ToLowerInvariant()
+  # MariaDB/MySQL can distinguish localhost and 127.0.0.1 for TCP.
+  $query = "CREATE USER IF NOT EXISTS 'lm_monitor'@'localhost' IDENTIFIED BY '$password'; " +
+           "ALTER USER 'lm_monitor'@'localhost' IDENTIFIED BY '$password'; " +
+           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'localhost'; " +
+           "CREATE USER IF NOT EXISTS 'lm_monitor'@'127.0.0.1' IDENTIFIED BY '$password'; " +
+           "ALTER USER 'lm_monitor'@'127.0.0.1' IDENTIFIED BY '$password'; " +
+           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'127.0.0.1';"
+  $stage = "criar e conceder privilegios ao lm_monitor"
+  [void](Invoke-LocalMySQL $temporary $query)
+  $lines = @("[client]", "host=127.0.0.1", "port=$port", "user=lm_monitor", "password=$password")
+  [IO.File]::WriteAllText($testConfig, ($lines -join [Environment]::NewLine), $utf8)
+  Protect-File $testConfig
+  $stage = "validar conta de monitoramento"
+  [void](Invoke-LocalMySQL $testConfig "SHOW DATABASES;")
+  Move-Item -LiteralPath $testConfig -Destination $monitorFile -ErrorAction Stop
+  Protect-File $monitorFile
+  Write-Host "Conta lm_monitor e arquivo mysql-monitor.cnf configurados e validados."
+} catch {
+  Write-Warning ("MySQL nao configurado na etapa [" + $stage + "]: " + $_.Exception.Message)
+  Write-Warning "O agente segue funcionando. Reexecute a configuracao posteriormente."
+} finally {
+  $adminPassword = ""
+  $password = ""
+  Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $testConfig -Force -ErrorAction SilentlyContinue
+}
+) {
+      $candidate = [int]$Matches[1]
+      if ($candidate -ge 1 -and $candidate -le 65535) { $port = $candidate }
+      break
+    }
+  }
+}
+Write-Host ("Porta MySQL configurada/detectada: " + $port)
+$portAnswer = Read-Host ("Porta TCP do MySQL [" + $port + "]")
+if (-not [string]::IsNullOrWhiteSpace($portAnswer)) {
+  if ($portAnswer -notmatch '^\d{1,5}
+$ptr = [IntPtr]::Zero
+$adminPassword = ""
+try {
+  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($adminSecure)
+  $adminPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+} finally {
+  if ($ptr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+}
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+function Quote-Option([string]$value) {
+  if ($value -match '[\r\n]') { throw "Quebras de linha nao suportadas." }
+  return '"' + $value.Replace('\', '\\').Replace('"', '\"') + '"'
+}
+function Protect-File([string]$path) {
+  & icacls.exe $path /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "Falha protegendo arquivo." }
+}
+function Invoke-LocalMySQL([string]$config, [string]$sql) {
+  $proc = New-Object System.Diagnostics.Process
+  $proc.StartInfo.FileName = $mysql
+  $proc.StartInfo.Arguments = ('--defaults-extra-file="' + $config + '" --protocol=TCP --connect-timeout=5 --batch --skip-column-names')
+  $proc.StartInfo.UseShellExecute = $false
+  $proc.StartInfo.CreateNoWindow = $true
+  $proc.StartInfo.RedirectStandardInput = $true
+  $proc.StartInfo.RedirectStandardOutput = $true
+  $proc.StartInfo.RedirectStandardError = $true
+  if (-not $proc.Start()) { throw "Cliente MySQL nao iniciado." }
+  try {
+    $proc.StandardInput.WriteLine($sql)
+    $proc.StandardInput.Close()
+    $stdout = $proc.StandardOutput.ReadToEnd()
+    $stderr = $proc.StandardError.ReadToEnd()
+    if (-not $proc.WaitForExit(15000)) {
+      try { $proc.Kill() } catch {}
+      throw "Timeout MySQL."
+    }
+    if ($proc.ExitCode -ne 0) { throw "MySQL recusou a operacao (codigo $($proc.ExitCode))." }
+    return $stdout.Trim()
+  } finally { $proc.Dispose() }
+}
+$temporary = Join-Path $base ("mysql-admin-" + [Guid]::NewGuid().ToString("N") + ".cnf")
+$testConfig = Join-Path $base ("mysql-monitor-" + [Guid]::NewGuid().ToString("N") + ".cnf")
+$password = ""
+try {
+  $lines = @("[client]", "host=127.0.0.1", "port=3306", "user=" + (Quote-Option $adminUser), "password=" + (Quote-Option $adminPassword))
+  [IO.File]::WriteAllText($temporary, ($lines -join [Environment]::NewLine), $utf8)
+  $adminPassword = ""
+  Protect-File $temporary
+  [void](Invoke-LocalMySQL $temporary "SELECT 1;")
+  $bytes = New-Object byte[] 24
+  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+  $password = ([BitConverter]::ToString($bytes)).Replace("-", "").ToLowerInvariant()
+  # MariaDB/MySQL can distinguish localhost and 127.0.0.1 for TCP.
+  $query = "CREATE USER IF NOT EXISTS 'lm_monitor'@'localhost' IDENTIFIED BY '$password'; " +
+           "ALTER USER 'lm_monitor'@'localhost' IDENTIFIED BY '$password'; " +
+           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'localhost'; " +
+           "CREATE USER IF NOT EXISTS 'lm_monitor'@'127.0.0.1' IDENTIFIED BY '$password'; " +
+           "ALTER USER 'lm_monitor'@'127.0.0.1' IDENTIFIED BY '$password'; " +
+           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'127.0.0.1';"
+  [void](Invoke-LocalMySQL $temporary $query)
+  $lines = @("[client]", "host=127.0.0.1", "port=3306", "user=lm_monitor", "password=$password")
+  [IO.File]::WriteAllText($testConfig, ($lines -join [Environment]::NewLine), $utf8)
+  Protect-File $testConfig
+  [void](Invoke-LocalMySQL $testConfig "SHOW DATABASES;")
+  Move-Item -LiteralPath $testConfig -Destination $monitorFile -ErrorAction Stop
+  Protect-File $monitorFile
+  Write-Host "Conta lm_monitor e arquivo mysql-monitor.cnf configurados e validados."
+} catch {
+  Write-Warning ("MySQL nao configurado: " + $_.Exception.Message)
+  Write-Warning "O agente segue funcionando. Reexecute a configuracao posteriormente."
+} finally {
+  $adminPassword = ""
+  $password = ""
+  Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $testConfig -Force -ErrorAction SilentlyContinue
+}
+ -or [int]$portAnswer -lt 1 -or [int]$portAnswer -gt 65535) {
+    Write-Warning "Porta invalida. Nenhuma conta sera criada."; return
+  }
+  $port = [int]$portAnswer
+}
+if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue)) {
+  Write-Warning ("Nao ha servidor MySQL acessivel por TCP em 127.0.0.1:" + $port)
+  Write-Warning "Verifique se o MySQL esta iniciado no XAMPP e qual porta esta configurada."
+  return
+}
 $adminSecure = Read-Host "Senha do usuario MySQL (Enter se vazia)" -AsSecureString
 $ptr = [IntPtr]::Zero
 $adminPassword = ""
