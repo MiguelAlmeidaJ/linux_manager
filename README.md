@@ -514,3 +514,21 @@ sudo systemctl restart linux-manager
 ```
 
 Depois use Ctrl+Shift+R e abra **Servidores**. O arquivo SQLite de registro será criado em `/srv/linux-manager/auth/nodes.sqlite3`; inclua-o nos backups privados da aplicação.
+
+## Windows Server: instalador por download e serviço automático
+
+Na página **Servidores**, um admin pode cadastrar Windows Server e usar **Baixar instalador Windows (.zip)**. O pacote traz scripts PowerShell e Python, configuração e token de autenticação exclusivo para a máquina. Para servidores já cadastrados, **Gerar instalador** rotaciona imediatamente o token anterior (a instalação antiga perde a conexão). O download exige login admin por HTTPS.
+
+**Instalação:** baixe e extraia o ZIP numa pasta privada do Windows. Revise Install-Agent.ps1; abra PowerShell como Administrador na pasta extraída e execute:
+
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Agent.ps1
+
+O instalador detecta Python 3.11+. Se necessário, tenta instalar Python 3.12 usando winget em escopo de máquina (ou orienta instalar manualmente). Instala pywin32, protege os arquivos e a credencial em C:\ProgramData\ServerManager com ACL apenas para SYSTEM e Administradores e registra **Server Manager Agent** como serviço Windows com inicialização Automática. Verifique em services.msc e, após validar, exclua ZIP e pasta extraída, pois contêm o token.
+
+O serviço executa como LocalSystem. PM2 normalmente roda sob outra conta Windows; o instalador tenta registrar pm2_home e o caminho do PM2 do contexto em que foi executado. Se a conta que mantém o daemon for outra, ajuste esses campos no arquivo agent.json e reinicie o serviço; as permissões dos pipes Windows podem exigir rodar o serviço sob a conta operacional do PM2. Essa configuração ainda precisa de validação real em Windows Server e após reboot.
+
+**IP e contexto:** o agente informa IPs locais de suas interfaces, não o IP público/NAT necessariamente. O painel exibe os IPs reportados no seletor do header. Ao selecionar um host remoto, as telas operacionais exclusivas do controlador Linux ficam ocultas e o PM2 apresenta somente processos daquele Windows Server em modo leitura; ao voltar para o servidor local, as operações originais ficam disponíveis. Deploy e controle remoto do PM2 Windows ainda não estão disponíveis.
+
+**Traefik:** configure TRUSTED_PROXY_IPS para o IP exato do proxy. Se a origem HTTPS não puder ser inferida, configure PUBLIC_SERVER_URL=https://lm.nivel3ti.com.br no ambiente do controlador. Não exponha a porta 8765 publicamente. O agente sempre inicia conexões HTTPS para o controlador, sem portas de administração de entrada no Windows.
+
+Para atualizar, faça git pull --ff-only como linuxmanager em /opt/linux-manager, valide a sintaxe de app.py e server_registry.py, reinicie linux-manager pelo systemd e atualize o navegador (Ctrl+Shift+R). O instalador não é assinado; avalie assinatura de código para distribuição corporativa.
