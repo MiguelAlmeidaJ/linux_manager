@@ -53,7 +53,11 @@ def collect():
                             "memory_bytes": max(0, int(item.get("WorkingSetPrivate") or 0))})
             except (ValueError, TypeError):
                 continue
-        top.sort(key=lambda p: (p["memory_bytes"], p["cpu_percent"]), reverse=True)
+        # Retain both memory-heavy and CPU-heavy processes for diagnosis.
+        most_memory = sorted(top, key=lambda p: p["memory_bytes"], reverse=True)[:15]
+        most_cpu = sorted(top, key=lambda p: p["cpu_percent"], reverse=True)[:15]
+        top = list({p["pid"]: p for p in [*most_memory, *most_cpu]}.values())
+        top.sort(key=lambda p: p["memory_bytes"], reverse=True)
         disks = payload.get("disks") or []
         if isinstance(disks, dict):
             disks = [disks]
