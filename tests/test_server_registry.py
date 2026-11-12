@@ -45,6 +45,24 @@ class ServerRegistryTests(unittest.TestCase):
                             nodes.Heartbeat(hostname="win-app-02"))
         self.assertFalse(nodes.detail(saved["id"])["enabled"])
 
+    def test_network_ips_are_validated_and_stored_without_loopback(self):
+        saved = nodes.create(nodes.NodeCreate(name="win-ips-01"))
+        body = nodes.Heartbeat(hostname="win-ips-01",
+            addresses=["192.168.199.25", "10.0.0.5", "127.0.0.1",
+                       "not-an-ip", "192.168.199.25", "::1"])
+        nodes.heartbeat(saved["id"], "Bearer " + saved["token"], body)
+        ips = nodes.detail(saved["id"])["addresses"]
+        self.assertEqual(ips, ["192.168.199.25", "10.0.0.5"])
+
+    def test_registered_token_is_required_to_generate_installer(self):
+        saved = nodes.create(nodes.NodeCreate(name="win-agent-04"))
+        self.assertEqual(nodes.verify_token(saved["id"], saved["token"]), "windows")
+        with self.assertRaises(HTTPException):
+            nodes.verify_token(saved["id"], "not-a-valid-token")
+        nodes.disable(saved["id"])
+        with self.assertRaises(HTTPException):
+            nodes.verify_token(saved["id"], saved["token"])
+
     def test_duplicate_rejected(self):
         nodes.create(nodes.NodeCreate(name="win-app-03"))
         with self.assertRaises(HTTPException):
