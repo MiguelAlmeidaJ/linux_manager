@@ -1,0 +1,44 @@
+name: Build Server Manager Windows EXE
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "agents/server_manager_launcher.py"
+      - "agents/Install-Agent.ps1"
+      - "agents/windows_agent.py"
+      - "agents/windows_metrics.py"
+      - "agents/windows_service.py"
+      - ".github/workflows/build-server-manager-windows.yml"
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check PowerShell scripts
+        shell: pwsh
+        run: |
+          $total = 0
+          Get-ChildItem agents -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$errors) | Out-Null
+            foreach ($e in $errors) { Write-Error "$($_.Name):$($e.Extent.StartLineNumber): $($e.Message)"; $total++ }
+          }
+          if ($total -gt 0) { exit 1 }
+      - name: Build unsigned GUI executable
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check "pyinstaller>=6,<7"
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name ServerManager agents/server_manager_launcher.py
+          if (-not (Test-Path dist/ServerManager.exe)) { throw "ServerManager.exe not produced" }
+          Get-FileHash dist/ServerManager.exe -Algorithm SHA256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ServerManager-Windows-unsigned
+          path: dist/ServerManager.exe
+          if-no-files-found: error
