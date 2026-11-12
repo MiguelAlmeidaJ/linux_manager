@@ -595,3 +595,11 @@ Para reexecutar apenas o provisionamento, abra PowerShell como Administrador e e
     sudo systemctl restart linux-manager
 
 Atualize o navegador com Ctrl+Shift+R e abra Servidores. O instalador e o provisionamento MySQL ainda precisam de validação no Windows Server real antes de serem considerados prontos para produção.
+
+### Diagnóstico: configuração MySQL falhou com código 2
+
+O aviso genérico código 2 não comprova senha errada. O script de configuração agora detecta a porta em XAMPP_HOME\mysql\bin\my.ini, permite escolher outra porta, testa se o serviço aceita TCP em 127.0.0.1 e mostra o estágio da falha e o número de erro MySQL (ex.: 1045, 2002, 2003), sem imprimir stderr bruto nem a senha.
+
+Faça novo download de **Servidores → Baixar atualização**, extraia a nova versão e execute APENAS `powershell -NoProfile -ExecutionPolicy Bypass -File .\Configure-MySQL.ps1` num PowerShell como Administrador. Não é preciso atualizar o serviço Windows novamente nem gerar outro token. O script preserva o mysql-monitor.cnf existente.
+
+Para confirmar a porta do MySQL XAMPP, verifique o valor de port em C:\xampp\mysql\bin\my.ini. Para testar a credencial com prompt seguro, execute `& "C:\xampp\mysql\bin\mysql.exe" --protocol=TCP --host=127.0.0.1 --port=3306 --user=root --password` e entre com a senha quando solicitado (ajuste porta). Não coloque senha na linha de comando. Se a instância usa login somente via socket/named pipe, ajuste os privilégios/conta de conexão TCP local de modo controlado; não exponha o serviço à rede.
