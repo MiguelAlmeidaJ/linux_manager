@@ -15,6 +15,7 @@ import time
 import urllib.error
 import urllib.request
 import windows_metrics
+import windows_actions
 
 CONFIG_PATH = Path(os.environ.get("LM_AGENT_CONFIG", str(Path(os.environ.get("ProgramData", "C:\\ProgramData")) / "ServerManager" / "agent.json")))
 try:
@@ -228,7 +229,7 @@ def network_addresses():
     return sorted(addresses)[:16]
 
 
-def send():
+def send(action_result=None):
     if not BASE.startswith("https://") or not NODE.isdigit() or not TOKEN:
         raise RuntimeError("Defina LM_SERVER_URL=https://..., LM_NODE_ID e LM_NODE_TOKEN")
     performance = windows_metrics.collect()
@@ -239,20 +240,29 @@ def send():
               "addresses": network_addresses(),
               "cpu_percent": performance.get("cpu_percent"),
               "memory_percent": performance.get("memory_percent"),
-              "performance": performance}
+              "performance": performance,
+              "action_result": action_result}
     data = json.dumps(report).encode("utf-8")
     request = urllib.request.Request(
         BASE + "/api/agent/nodes/" + NODE + "/heartbeat", data=data,
         headers={"Authorization": "Bearer " + TOKEN,
                  "Content-Type": "application/json"}, method="POST")
     with urllib.request.urlopen(request, timeout=15) as response:
-        return response.status
+        payload = json.loads(response.read(30000))
+        if not isinstance(payload, dict) or not payload.get("ok"):
+            raise RuntimeError("Resposta do controlador inválida")
+        return payload.get("action")
 
 
 def run_forever(stop_event=None):
+    pending_result = None
     while stop_event is None or not stop_event.is_set():
         try:
-            print("Server Manager:", send(), flush=True)
+            action = send(pending_result)
+            pending_result = None
+            if action is not None:
+                pending_result = windows_actions.perform(action, PM2_HOME, PM2_COMMAND)
+            print("Server Manager: heartbeat recebido", flush=True)
         except Exception as error:
             print("Falha ao reportar status:", type(error).__name__, flush=True)
         if stop_event is not None:
