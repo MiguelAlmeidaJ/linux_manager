@@ -987,6 +987,24 @@ async function loadServers(){
    };
    actions.append(view);
    if(currentRole==="admin"&&server.enabled&&server.os_type==="windows"){
+    const update=document.createElement("button");update.type="button";
+    update.className="ghost";update.textContent="Baixar atualização";
+    update.title="Pacote sem token, preserva a instalação existente";
+    update.onclick=async()=>{
+      update.disabled=true;
+      try{
+        const response=await fetch("/api/servers/"+encodeURIComponent(server.id)+"/agent-update",{credentials:"same-origin"});
+        if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.detail||"Não foi possível baixar a atualização")}
+        const blob=await response.blob();
+        const url=URL.createObjectURL(blob),link=document.createElement("a");
+        link.href=url;link.download="server-manager-windows-update-"+server.id+".zip";
+        document.body.append(link);link.click();link.remove();
+        setTimeout(()=>URL.revokeObjectURL(url),60000);
+        notify("Pacote baixado. Execute Update-Agent.ps1 como administrador no Windows.")
+      }catch(e){failure(e)}finally{update.disabled=false}
+    };actions.append(update)
+   }
+   if(currentRole==="admin"&&server.enabled&&server.os_type==="windows"){
     const install=document.createElement("button");install.type="button";install.className="ghost";install.textContent="Gerar instalador";
     install.onclick=async()=>{
       if(!confirm("Gerar novo instalador para "+server.name+"? O token anterior será revogado e o agente antigo perderá acesso até ser atualizado."))return;
