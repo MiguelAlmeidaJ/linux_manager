@@ -8,6 +8,7 @@ import os
 import platform
 import socket
 import ipaddress
+import re
 from pathlib import Path
 import subprocess
 import time
@@ -125,7 +126,30 @@ def php_projects():
                 continue
     except (OSError, PermissionError):
         return []
-    # No auto-discovery of vhosts pointing outside htdocs in this phase.
+    # Apache VirtualHosts can use DocumentRoot outside htdocs. Only extract
+    # ServerName and DocumentRoot from the local Apache conf (no php or env read).
+    conf = Path(os.environ.get("XAMPP_HOME", r"C:\xampp")) / "apache" / "conf" / "extra" / "httpd-vhosts.conf"
+    try:
+        text = conf.read_text(encoding="utf-8-sig", errors="replace")[:250000]
+        blocks = re.findall(r"<VirtualHost\b[^>]*>(.*?)</VirtualHost\s*>", text,
+                            flags=re.IGNORECASE | re.DOTALL)[:100]
+        for block in blocks:
+            name_match = re.search(r"(?im)^\s*ServerName\s+(\S+)", block)
+            root_match = re.search(r'(?im)^\s*DocumentRoot\s+(?:"([^"]+)"|(\S+))', block)
+            if not root_match:
+                continue
+            webroot = Path((root_match.group(1) or root_match.group(2)).strip())
+            if not webroot.is_dir():
+                continue
+            domain = name_match.group(1).strip() if name_match else webroot.name
+            if any(p["path"].casefold() == str(webroot).casefold() for p in projects):
+                continue
+            projects.append({"name": domain[:120], "path": str(webroot)[:260],
+                             "type": "PHP / Apache", "source": "VirtualHost"})
+            if len(projects) >= 100:
+                break
+    except (OSError, PermissionError):
+        pass
     return projects[:100]
 
 
