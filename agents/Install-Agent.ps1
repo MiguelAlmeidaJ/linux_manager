@@ -70,6 +70,7 @@ if ($service) {
 }
 Copy-Item -LiteralPath (Join-Path $source "windows_agent.py") -Destination $target -Force
 Copy-Item -LiteralPath (Join-Path $source "windows_metrics.py") -Destination $target -Force
+Copy-Item -LiteralPath (Join-Path $source "windows_actions.py") -Destination $target -Force
 Copy-Item -LiteralPath (Join-Path $source "windows_service.py") -Destination $target -Force
 # PM2 runs per user. When installing from the PM2 owner session, this
 # points to that user's daemon; otherwise edit pm2_home after install.
