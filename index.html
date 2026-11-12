@@ -932,6 +932,21 @@ async function loadServers(){
     }catch(e){failure(e)}
    };
    actions.append(view);
+   if(currentRole==="admin"&&server.enabled&&server.os_type==="windows"){
+    const install=document.createElement("button");install.type="button";install.className="ghost";install.textContent="Gerar instalador";
+    install.onclick=async()=>{
+      if(!confirm("Gerar novo instalador para "+server.name+"? O token anterior será revogado e o agente antigo perderá acesso até ser atualizado."))return;
+      install.disabled=true;
+      try{const enrollment=await api("/servers/"+server.id+"/rotate-token","POST",{});
+        $("newNodeId").value=String(enrollment.id);$("newNodeToken").value=enrollment.token;
+        $("serverAgentGuide").textContent="Baixe o ZIP, extraia em pasta privada e execute Install-Agent.ps1 em PowerShell elevado. O token anterior foi revogado.";
+        $("serverAgentGuide").classList.remove("hide");
+        $("serverTokenPanel").classList.remove("hide");
+        $("serverTokenPanel").scrollIntoView({behavior:"smooth",block:"center"});
+        notify("Token rotacionado. Baixe o instalador para restabelecer a conexão.")
+      }catch(e){failure(e)}finally{install.disabled=false}
+    };actions.append(install)
+   }
    if(currentRole==="admin"&&server.enabled){
     const disable=document.createElement("button");disable.type="button";disable.className="ghost";disable.textContent="Desativar";
     disable.onclick=async()=>{if(prompt("Digite "+server.name+" para desativar o agente:")!==server.name)return;
