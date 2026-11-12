@@ -611,3 +611,26 @@ Não recrie a conta nem altere a senha existente. No painel, baixe o ZIP atualiz
 Depois execute `Restart-Service ServerManagerAgent` e confira os bancos na página Servidores. Opcionalmente, `Configure-MySQL.ps1` agora pergunta primeiro se lm_monitor já existe e delega ao procedimento seguro sem alteração de usuário; criação automática de conta requer confirmação explícita em uma alternativa separada.
 
 Se a conexão falhar com 1045, a credencial e a origem da conta MySQL devem ser conferidas; MariaDB distingue 'localhost' e '127.0.0.1' dependendo do modo de autenticação e resolução. Nenhum arquivo .cnf é publicado se o teste de consulta falhar. A criação manual de usuário no banco não cria, por si só, o arquivo de credenciais local do agente.
+
+## Multi-servidor: visão geral de desempenho, páginas Windows e executável
+
+A tela **Servidores** agora prioriza um resumo de desempenho por host remoto: CPU, RAM usada, RAM total, porcentagem de memória, discos e os processos Windows que mais consomem recursos. O ranking permite ordenar por **CPU** ou **memória**. Os dados são recebidos por HTTPS do agente e são amostras pontuais, não medições históricas ou diagnóstico causal definitivo. Enquanto o agente antigo estiver instalado, as métricas serão apresentadas como indisponíveis; não são inventadas.
+
+**Separação por servidor:** ao escolher um Windows Server no seletor do cabeçalho, o painel oferece páginas independentes **Processos PM2**, **Projetos PHP**, **Bancos MySQL** e **Serviços XAMPP**, todas filtradas pelo ID da máquina. Isso elimina as listas PHP/MySQL duplicadas na visão geral de Servidores. As ações locais continuam bloqueadas no contexto remoto. O painel principal permanece Linux.
+
+### Atualizar o agente Windows para ativar métricas
+
+1. Atualize o controlador em /opt/linux-manager com git pull --ff-only e sudo systemctl restart linux-manager.
+2. Baixe **Servidores → Windows → Baixar atualização**. O ZIP agora contém também windows_metrics.py.
+3. Extraia em pasta privada, revise Update-Agent.ps1 e execute elevado: `powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-Agent.ps1 -SkipMySQL`.
+4. Aguarde o heartbeat (até cerca de 60 segundos) e abra o servidor na página Servidores. CPU/RAM e top processos virão do Windows via Win32_Processor, Win32_OperatingSystem, Win32_PerfFormattedData_PerfProc_Process e Win32_LogicalDisk. São consultas somente leitura.
+
+### ServerManager.exe: build Windows, sem fingir que scripts são executáveis
+
+O repositório inclui o código `agents/server_manager_launcher.py` para um iniciador GUI Windows que exibe uma janela **Server Manager**, valida a presença de enrollment.json e demais scripts ao lado do executável e chama Install-Agent.ps1 com elevação UAC. O binário **ServerManager.exe** é compilado no Windows usando PyInstaller pelo workflow `.github/workflows/build-server-manager-windows.yml` e publicado como artifact `ServerManager-Windows-unsigned` em **GitHub Actions**. O pacote NÃO contém o token dentro do executável: o token fica em enrollment.json ao lado, dentro do ZIP por servidor.
+
+**Atenção:** a definição do workflow foi adicionada, mas a compilação do Windows ainda precisa ser executada e verificada. O painel inclui ServerManager.exe no ZIP de instalação **apenas quando o binário compilado estiver presente em `/opt/linux-manager/agents/bin/ServerManager.exe`**. Sem ele, o ZIP mantém o instalador PowerShell existente. Para disponibilizá-lo pelo painel, obtenha o exe gerado em GitHub Actions, examine seu SHA-256, coloque em `/opt/linux-manager/agents/bin/ServerManager.exe` com propriedade linuxmanager e permissão de leitura e gere um novo ZIP no painel. Não renomeie arquivos PowerShell ou ZIP para .exe. O executável ainda **não é assinado digitalmente** e pode gerar avisos de proteção do Windows; não desative o antivírus globalmente.
+
+**Instalação:** extraia todo o ZIP gerado em pasta privada no Windows. Se ServerManager.exe estiver presente, revise os scripts e execute-o; ele invocará PowerShell com UAC e instalará o serviço com inicialização automática. Remova ZIP e pasta com enrollment.json após finalizar, pois contêm token privado. Use Update-Agent.ps1 para atualizar um agente existente sem trocar token.
+
+**Observação:** o ServerManager.exe aqui instala o **agente do Server Manager no Windows**, não o pacote XAMPP. A instalação automática do XAMPP, Apache, PHP e MySQL como serviços gerenciáveis é um recurso futuro diferente, que demandará um fluxo de instalação explícito e backups.
