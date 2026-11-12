@@ -20,7 +20,7 @@ class WindowsUpdateBundleTests(unittest.TestCase):
             agents = root / "agents"
             agents.mkdir()
             for filename in ("Update-Agent.ps1", "Configure-MySQL.ps1",
-                             "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_service.py"):
+                             "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_metrics.py", "windows_actions.py", "windows_service.py"):
                 (agents / filename).write_text("# safe update file\n")
             request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
             with patch.object(app, "__file__", str(root / "app.py")), \
@@ -34,6 +34,8 @@ class WindowsUpdateBundleTests(unittest.TestCase):
                 self.assertIn("Update-Agent.ps1", names)
                 self.assertIn("Configure-MySQL.ps1", names)
                 self.assertIn("Configure-Existing-MySQL.ps1", names)
+                self.assertIn("windows_actions.py", names)
+                self.assertIn("windows_metrics.py", names)
                 self.assertNotIn("enrollment.json", names)
                 self.assertNotIn("agent.json", names)
             self.assertIn("no-store", result.headers.get("cache-control", ""))
