@@ -99,6 +99,11 @@ if ($LASTEXITCODE -ne 0) { throw "Falha iniciando servico Windows." }
 & sc.exe failure ServerManagerAgent reset= 86400 actions= restart/60000/restart/60000/restart/60000 | Out-Null
 if ($LASTEXITCODE -ne 0) { Write-Warning "Nao foi possivel configurar recuperacao automatica de falhas." }
 
+$mysqlSetup = Join-Path $source "Configure-MySQL.ps1"
+if (Test-Path -LiteralPath $mysqlSetup) {
+  & $mysqlSetup
+}
+
 Write-Host ""
 Write-Host "Server Manager Agent instalado e iniciado como servico automatico."
 Write-Host "PM2_HOME configurado: $pm2Home"
