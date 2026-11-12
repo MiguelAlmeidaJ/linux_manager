@@ -464,3 +464,53 @@ Em **Aplicações → Configurar**, o campo **Portas adicionais** aceita número
 **Segurança:** `127.0.0.1:3001` significa somente local; `0.0.0.0:3001` significa que o processo escuta em todas as interfaces IPv4, não que a porta esteja liberada publicamente. Liberação por firewall e proxy são operações independentes e intencionais. Para Docker, as portas cadastradas aparecem como não detectadas neste painel; consulte a aba Containers para verificar o mapeamento real.
 
 Para atualizar: `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit`, `sudo systemctl restart linux-manager`, e atualize a página com Ctrl+Shift+R. Esta atualização não reinicia as aplicações PM2.
+
+## Server Manager — múltiplos hosts Linux e Windows (fase 1)
+
+O Linux Manager passa a atuar também como **controlador central** de servidores. O servidor Linux atual permanece como host principal (projetos, Docker, banco e PM2 locais continuam funcionando). A nova aba **Servidores** mostra o host principal e servidores remotos registrados, com estado online/offline, último contato e inventário de processos.
+
+### Windows Server / XAMPP / PM2
+
+O agente de inventário está em `agents/windows_agent.py`. Ele funciona no Windows com **Python 3.11+**, somente biblioteca padrão, sem precisar abrir portas de WinRM, RDP ou HTTP no Windows. Ele envia dados por HTTPS a cada minuto ao controlador:
+- processos do PM2 visíveis ao usuário que executa o agente (nome, estado, PID, reinícios e memória, sem expor variáveis de ambiente);
+- serviços Windows relevantes para Apache e MariaDB/MySQL;
+- processos Apache (httpd.exe) e MariaDB/MySQL (mysqld.exe) do XAMPP mesmo quando iniciados sem registro como serviço;
+- versão local do PHP instalado no XAMPP, se o executável estiver em `C:\xampp\php\php.exe` (ou sob `XAMPP_HOME`).
+
+Observe que o XAMPP moderno normalmente distribui **MariaDB**, embora a interface de gerenciamento seja similar à do MySQL. Instalações XAMPP sem serviços Windows são identificadas pela presença dos processos correspondentes, o que é apenas monitoramento inicial. O PM2 é *por usuário*; execute o agente no mesmo contexto Windows que mantém o daemon do PM2. Para inicialização automática dos projetos após reboot do Windows, é necessário configurar serviço/tarefa de inicialização própria do Windows; `pm2 startup` destina-se aos init systems POSIX, não instala um serviço Windows automaticamente. <https://pm2.keymetrics.io/docs/usage/startup/>
+
+### Adicionar Windows Server
+
+1. Entre no painel via HTTPS como admin → **Servidores → Adicionar servidor**; defina nome e Windows Server.
+2. Copie o **ID** e o **token privado mostrado uma única vez**. Guarde o token em armazenamento restrito; a API mantém apenas seu SHA-256. O botão *Desativar* revoga o token.
+3. Instale Python 3.11+ no Windows e copie `agents/windows_agent.py` para uma pasta privada.
+4. Em PowerShell, **na sessão do usuário operacional**, defina os valores (substitua os exemplos pelos reais, sem publicar tokens em tickets ou logs):
+   ```powershell
+   $env:LM_SERVER_URL = "https://lm.nivel3ti.com.br"
+   $env:LM_NODE_ID = "ID_CADASTRADO"
+   $env:LM_NODE_TOKEN = "TOKEN_PRIVADO"
+   py -3 C:\ServerManager\windows_agent.py
+   ```
+5. Verifique se o status muda para Online no painel e abra **Ver serviços**. Teste com um processo PM2 e o XAMPP funcionando.
+6. Depois de validar, configure execução automática do agente usando tarefa do Windows sob conta dedicada. As variáveis devem ser fornecidas de maneira segura para a conta operacional; **não** coloque o token na linha de comando da tarefa, em scripts públicos ou no repositório. Restrinja leitura dos arquivos/segredos com ACLs do Windows.
+
+### Segurança e limitações da fase 1
+
+Esta versão é **inventário e monitoramento remoto somente leitura**. Ela **não** instala aplicações, executa comandos remotos, altera PM2/XAMPP, cria bancos remotos, configura firewall ou faz deploy no Windows. Esses recursos exigirão um protocolo de comandos tipados, confirmação, isolamento por host, filas de tarefas e auditoria antes de serem liberados. O cadastro de servidores é admin-only e requer sessão segura; os demais usuários autenticados podem consultar o estado dos servidores.
+
+O endpoint `POST /api/agent/nodes/{id}/heartbeat` aceita apenas HTTPS direto ou via proxy explicitamente confiável e exige bearer token único por host. O agente inicia a conexão, então o firewall do Windows pode continuar bloqueando conexões de gerenciamento de entrada. Nunca exponha a porta 8765 diretamente à internet; publique o controlador exclusivamente via Traefik HTTPS/VPN.
+
+O status online significa apenas que chegou um relatório recente (até 180 s); não garante que um projeto específico esteja atendendo requisições. Os valores enviados pelo agente são dados declarados pelo próprio host e não substituem monitoramento externo.
+
+### Upgrade do controlador
+
+```bash
+sudo -iu linuxmanager
+cd /opt/linux-manager
+git pull --ff-only
+.venv/bin/python -m py_compile app.py server_registry.py
+exit
+sudo systemctl restart linux-manager
+```
+
+Depois use Ctrl+Shift+R e abra **Servidores**. O arquivo SQLite de registro será criado em `/srv/linux-manager/auth/nodes.sqlite3`; inclua-o nos backups privados da aplicação.
