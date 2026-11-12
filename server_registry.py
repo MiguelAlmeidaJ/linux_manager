@@ -84,6 +84,12 @@ def connect():
             result TEXT NOT NULL DEFAULT '',
             requested_by TEXT NOT NULL
         )""")
+        db.execute("""CREATE TABLE IF NOT EXISTS node_metrics (
+            node_id INTEGER NOT NULL, recorded_at INTEGER NOT NULL,
+            cpu_percent REAL NOT NULL, memory_percent REAL NOT NULL,
+            PRIMARY KEY(node_id,recorded_at)
+        )""")
+        db.execute("CREATE INDEX IF NOT EXISTS node_metrics_at ON node_metrics(recorded_at)")
         db.execute("CREATE INDEX IF NOT EXISTS remote_actions_node ON remote_actions(node_id,created_at)")
         db.commit()
     os.chmod(NODES_DB, 0o600)
@@ -245,6 +251,13 @@ def queue_action(node_id, kind, target, actor):
     return {"id": identifier, "status": "queued", "kind": kind, "target": target}
 
 
+def metrics_history(node_id):
+    with _db() as db:
+        rows = db.execute("SELECT recorded_at,cpu_percent,memory_percent FROM node_metrics "
+                          "WHERE node_id=? ORDER BY recorded_at DESC LIMIT 120", (node_id,)).fetchall()
+        return [dict(row) for row in reversed(rows)]
+
+
 def list_actions(node_id, limit=20):
     with _db() as db:
         return [dict(row) for row in db.execute(
@@ -314,6 +327,11 @@ def heartbeat(node_id, bearer, body):
                    (int(time.time()), body.hostname, body.os_version, body.cpu_percent,
                     body.memory_percent, json.dumps(pm2), json.dumps(services), json.dumps(addresses),
                     json.dumps(php), json.dumps(mysql_clean), json.dumps(performance), node_id))
+        if body.cpu_percent is not None and body.memory_percent is not None:
+            db.execute("INSERT OR REPLACE INTO node_metrics(node_id,recorded_at,cpu_percent,memory_percent) VALUES (?,?,?,?)",
+                       (node_id,int(time.time()),body.cpu_percent,body.memory_percent))
+            db.execute("DELETE FROM node_metrics WHERE node_id=? AND recorded_at < ?",
+                       (node_id,int(time.time())-86400))
         command = _deliver_action(db,node_id,int(time.time()))
         db.commit()
     return {"ok": True, "action": command}
