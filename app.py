@@ -358,6 +358,28 @@ def server_details(node_id: int, request: Request):
     return nodes.detail(node_id)
 
 
+class RemoteActionRequest(BaseModel):
+    kind: Literal["start", "stop", "restart", "reload", "logs", "service_restart"]
+    target: str = Field(min_length=1, max_length=120)
+
+
+@app.post("/api/servers/{node_id}/actions")
+def server_remote_action(node_id: int, payload: RemoteActionRequest, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    queued = nodes.queue_action(node_id, payload.kind, payload.target, actor["username"])
+    identities.log(actor["id"], actor["username"], "server.action.queued",
+                   "server:" + str(node_id) + ":" + payload.kind + ":" + payload.target,
+                   202, request.client.host if request.client else "")
+    return JSONResponse(queued, status_code=202, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/servers/{node_id}/actions")
+def server_remote_actions(node_id: int, request: Request):
+    assert_admin(request)
+    return nodes.list_actions(node_id)
+
+
 @app.post("/api/servers")
 def server_create(payload: nodes.NodeCreate, request: Request):
     actor = assert_admin(request)
