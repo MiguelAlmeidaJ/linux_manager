@@ -402,7 +402,7 @@ def server_installer(node_id: int, payload: AgentInstallerRequest, request: Requ
         raise HTTPException(400, "Instalador disponível apenas para Windows Server")
     # Use source files from this local, version-controlled application.
     src = Path(__file__).resolve().parent / "agents"
-    files = ("Install-Agent.ps1", "Configure-MySQL.ps1", "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_metrics.py", "windows_service.py")
+    files = ("Install-Agent.ps1", "Configure-MySQL.ps1", "Configure-Existing-MySQL.ps1", "windows_agent.py", "windows_metrics.py", "windows_actions.py", "windows_service.py")
     for filename in files:
         if not (src / filename).is_file() or (src / filename).is_symlink():
             raise HTTPException(503, "Arquivos de instalação não encontrados")
