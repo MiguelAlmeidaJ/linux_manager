@@ -567,7 +567,18 @@ def update_project(name: str, request: Request):
 @app.get("/api/pm2")
 def pm2_list(request: Request):
     assert_auth(request)
-    return pm2_process_snapshot()
+    processes = pm2_process_snapshot()
+    try:
+        listeners = psutil.net_connections(kind="tcp")
+    except (OSError, psutil.Error):
+        listeners = []
+    for process in processes:
+        entries = project_listeners([process], [], listeners)
+        process["ports"] = [
+            {"port": item["port"], "address": item["address"]}
+            for item in entries if item["listening"]
+        ]
+    return processes
 
 @app.post("/api/pm2/processes/{process_name}/{action}")
 def manage_pm2_process(process_name: str, action: str, request: Request):
