@@ -37,6 +37,8 @@ class Heartbeat(BaseModel):
     pm2: list[dict] = Field(default_factory=list, max_length=100)
     services: list[dict] = Field(default_factory=list, max_length=40)
     addresses: list[str] = Field(default_factory=list, max_length=16)
+    php_projects: list[dict] = Field(default_factory=list, max_length=100)
+    mysql: dict = Field(default_factory=dict)
 
 
 def connect():
@@ -58,11 +60,17 @@ def connect():
             memory_percent REAL,
             pm2_json TEXT NOT NULL DEFAULT '[]',
             services_json TEXT NOT NULL DEFAULT '[]',
-            addresses_json TEXT NOT NULL DEFAULT '[]'
+            addresses_json TEXT NOT NULL DEFAULT '[]',
+            php_projects_json TEXT NOT NULL DEFAULT '[]',
+            mysql_json TEXT NOT NULL DEFAULT '{}'
         )""")
         columns = {row[1] for row in db.execute("PRAGMA table_info(nodes)")}
         if "addresses_json" not in columns:
             db.execute("ALTER TABLE nodes ADD COLUMN addresses_json TEXT NOT NULL DEFAULT '[]'")
+        if "php_projects_json" not in columns:
+            db.execute("ALTER TABLE nodes ADD COLUMN php_projects_json TEXT NOT NULL DEFAULT '[]'")
+        if "mysql_json" not in columns:
+            db.execute("ALTER TABLE nodes ADD COLUMN mysql_json TEXT NOT NULL DEFAULT '{}'")
         db.commit()
     os.chmod(NODES_DB, 0o600)
 
@@ -105,6 +113,8 @@ def _public(row, include_detail=False):
     if include_detail:
         item["pm2"] = json.loads(row["pm2_json"])
         item["services"] = json.loads(row["services_json"])
+        item["php_projects"] = json.loads(row["php_projects_json"])
+        item["mysql"] = json.loads(row["mysql_json"])
     return item
 
 
@@ -119,6 +129,21 @@ def detail(node_id):
         if not row:
             raise HTTPException(404, "Servidor não encontrado")
         return _public(row, True)
+
+
+def _clean_ports(items):
+    result = []
+    for item in items[:32] if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            port = int(item.get("port", 0))
+            address = str(ipaddress.ip_address(str(item.get("address", "")).split("%")[0]))
+            if 1 <= port <= 65535 and (port, address) not in {(p["port"], p["address"]) for p in result}:
+                result.append({"port": port, "address": address})
+        except (ValueError, TypeError):
+            continue
+    return result
 
 
 def _clean(items, attributes):
@@ -156,11 +181,21 @@ def heartbeat(node_id, bearer, body):
             continue
     with _LOCK, _db() as db:
         pm2 = _clean(body.pm2, ("name", "status", "pid", "restarts", "memory"))
+        for cleaned, original in zip(pm2, [x for x in body.pm2 if isinstance(x, dict)]):
+            cleaned["ports"] = _clean_ports(original.get("ports", []))
         services = _clean(body.services, ("name", "status", "type"))
+        php = _clean(body.php_projects, ("name", "path", "type", "source"))
+        mysql = body.mysql if isinstance(body.mysql, dict) else {}
+        status = str(mysql.get("status", "unavailable"))
+        if status not in ("ok", "unavailable", "configuration_required", "not_installed"):
+            status = "unavailable"
+        mysql_clean = {"status": status, "engine": "MySQL/MariaDB",
+            "databases": _clean(mysql.get("databases", [])[:100] if isinstance(mysql.get("databases"), list) else [], ("name",))}
         db.execute("""UPDATE nodes SET last_seen=?,hostname=?,os_version=?,cpu_percent=?,
-                   memory_percent=?,pm2_json=?,services_json=?,addresses_json=? WHERE id=?""",
+                   memory_percent=?,pm2_json=?,services_json=?,addresses_json=?,php_projects_json=?,mysql_json=? WHERE id=?""",
                    (int(time.time()), body.hostname, body.os_version, body.cpu_percent,
-                    body.memory_percent, json.dumps(pm2), json.dumps(services), json.dumps(addresses), node_id))
+                    body.memory_percent, json.dumps(pm2), json.dumps(services), json.dumps(addresses),
+                    json.dumps(php), json.dumps(mysql_clean), node_id))
         db.commit()
     return {"ok": True}
 
