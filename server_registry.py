@@ -4,6 +4,7 @@ Tokens are shown once, stored as SHA-256 hashes. Every node has a distinct key.
 Hosts/services are untrusted reported data: the server never executes them.
 """
 import hashlib
+from contextlib import contextmanager
 import ipaddress
 import json
 import os
@@ -66,11 +67,16 @@ def connect():
     os.chmod(NODES_DB, 0o600)
 
 
+@contextmanager
 def _db():
     connect()
     conn = sqlite3.connect(str(NODES_DB), timeout=5)
     conn.row_factory = sqlite3.Row
-    return conn
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def create(data):
