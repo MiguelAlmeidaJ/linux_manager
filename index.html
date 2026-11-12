@@ -290,7 +290,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 #selectedServerWorkspace:not(.hide){margin-bottom:17px;background:#f7faff;border:1px solid #e5ecf6;padding:19px;border-radius:12px}
 @media(max-width:720px){.server-switch select{max-width:150px}}
 .pm2-filters{display:grid;grid-template-columns:minmax(200px,1fr) 195px;gap:13px;margin:13px 0 20px}.pm2-filters .field{margin:0;font-size:11px}.pm2-filters input,.pm2-filters select{margin-top:7px}.pm2-port-cell{max-width:220px;min-width:90px}.pm2-port-chip{display:inline-block;border-radius:6px;background:#edf4ff;color:#2e5eab;border:1px solid #dce7fa;padding:4px 7px;font-size:10px;font-weight:700;margin:2px 4px 2px 0;font-variant-numeric:tabular-nums}@media(max-width:720px){.pm2-filters{grid-template-columns:1fr}}
-.remote-stack-panel{margin:17px 0}.remote-stack-panel .table{margin-top:9px}.remote-db-state{color:#55708f;background:#f5f9ff;border:1px solid #e5edf9;border-radius:8px;padding:11px 13px;margin:14px 0;font-size:12px}.remote-stack-panel .table td{overflow-wrap:anywhere}.server-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0 22px}.server-metric{background:white;border:1px solid #e0e8f2;border-radius:12px;padding:17px;min-width:0}.server-metric>span{display:block;color:#8597ad;font-size:11px;margin-bottom:10px}.server-metric strong{font-size:24px;color:#193654;font-variant-numeric:tabular-nums}.server-meter{height:6px;margin-top:14px;background:#eaf0f8;border-radius:5px;overflow:hidden}.server-meter span{display:block;height:100%;background:#3c78d8;border-radius:5px}.server-top-processes{grid-column:1/-1;background:white;border:1px solid #e0e8f2;border-radius:12px;padding:19px;overflow:auto}.server-top-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.server-top-title h3{font-size:14px}.server-shortcuts{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}.server-shortcuts button{font-size:12px}@media(max-width:820px){.server-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:470px){.server-metrics{grid-template-columns:1fr}}</style>
+.remote-stack-panel{margin:17px 0}.remote-stack-panel .table{margin-top:9px}.remote-db-state{color:#55708f;background:#f5f9ff;border:1px solid #e5edf9;border-radius:8px;padding:11px 13px;margin:14px 0;font-size:12px}.remote-stack-panel .table td{overflow-wrap:anywhere}.server-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:16px 0 22px}.server-metric{background:white;border:1px solid #e0e8f2;border-radius:12px;padding:17px;min-width:0}.server-metric>span{display:block;color:#8597ad;font-size:11px;margin-bottom:10px}.server-metric strong{font-size:24px;color:#193654;font-variant-numeric:tabular-nums}.server-meter{height:6px;margin-top:14px;background:#eaf0f8;border-radius:5px;overflow:hidden}.server-meter span{display:block;height:100%;background:#3c78d8;border-radius:5px}.server-top-processes{grid-column:1/-1;background:white;border:1px solid #e0e8f2;border-radius:12px;padding:19px;overflow:auto}.server-top-title{display:flex;align-items:center;justify-content:space-between;gap:10px}.server-top-title h3{font-size:14px}.server-shortcuts{grid-column:1/-1;display:flex;gap:10px;flex-wrap:wrap}.server-shortcuts button{font-size:12px}@media(max-width:820px){.server-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:470px){.server-metrics{grid-template-columns:1fr}}.server-sort{font-size:11px;width:auto;min-width:130px}.disk-usage{font-size:12px;color:#526683;margin:11px 0 4px}</style>
 </head>
 <body>
 <div id="login" class="loginwrap hide"><div class="panel login"><div class="brand login-brand"><img class="brand-full-image hide" alt="Logo do sistema"><div class="brand-default"><div class="brand-logo">⌘</div></div></div><h1>Bem-vindo de volta</h1><p class="muted small">Entre para administrar seu servidor Linux.</p><form id="loginForm"><label class="field">Usuário ou e-mail<input type="text" id="loginUsername" required autocomplete="username" placeholder="admin"></label><label class="field">Senha de acesso<input type="password" id="password" required autocomplete="current-password" placeholder="Sua senha"></label><button>Entrar no painel</button></form><p class="small" style="color:#ff8989" id="loginError"></p></div></div>
@@ -955,21 +955,38 @@ async function loadServers(){
      section.append(card)
     }
     const heading=document.createElement("div");heading.className="server-top-title";
-    heading.innerHTML='<h3>Processos que mais consomem memória</h3><span class="small muted">Amostra do Windows · somente leitura</span>';
+    heading.innerHTML='<h3>Processos que mais consomem recursos</h3><span class="small muted">CPU e memória · somente leitura</span>';
+    const order=document.createElement("select");order.className="server-sort";order.setAttribute("aria-label","Ordenar por consumo");order.innerHTML='<option value="memory">Maior memória</option><option value="cpu">Maior CPU</option>';heading.append(order);
     const table=document.createElement("table");table.className="table";table.innerHTML="<thead><tr><th>Processo</th><th>PID</th><th>CPU</th><th>Memória</th></tr></thead>";
     const body=document.createElement("tbody");
-    for(const p of (perf.top_processes||[]).slice(0,8)){
+    for(const p of (perf.top_processes||[]).slice().sort((a,b)=>b.memory_bytes-a.memory_bytes).slice(0,10)){
      const tr=document.createElement("tr");
      for(const value of [p.name,p.pid,p.cpu_percent+"%",(p.memory_bytes/1048576).toFixed(1)+" MB"]){const td=document.createElement("td");td.textContent=value;tr.append(td)}
      body.append(tr)
     }
     if(!body.children.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=4;td.textContent="Aguardando métricas do agente Windows atualizado";tr.append(td);body.append(tr)}
-    table.append(body);const tablebox=document.createElement("div");tablebox.className="server-top-processes";tablebox.append(heading,table);section.append(tablebox);
+    table.append(body);
+    order.onchange=()=>{body.replaceChildren();for(const p of (perf.top_processes||[]).slice().sort((a,b)=>order.value==="cpu"?b.cpu_percent-a.cpu_percent:b.memory_bytes-a.memory_bytes).slice(0,10)){
+      const tr=document.createElement("tr");for(const value of [p.name,p.pid,p.cpu_percent+"%",(p.memory_bytes/1048576).toFixed(1)+" MB"]){const td=document.createElement("td");td.textContent=value;tr.append(td)}body.append(tr)
+    }};
+    const tablebox=document.createElement("div");tablebox.className="server-top-processes";tablebox.append(heading,table);section.append(tablebox);
     const shortcuts=document.createElement("div");shortcuts.className="server-shortcuts";
     for(const [title,page] of [["Ver PM2","pm2"],["Projetos PHP","remotephp"],["Bancos MySQL","remotedb"],["Serviços XAMPP","remotexampp"]]){
      const button=document.createElement("button");button.className="ghost";button.textContent=title;button.onclick=()=>switchTab(page);shortcuts.append(button)
     }
     section.append(shortcuts);
+    if(Array.isArray(perf.disks)&&perf.disks.length){
+      const disk=document.createElement("div");disk.className="server-top-processes";
+      const title=document.createElement("h3");title.textContent="Discos do servidor";disk.append(title);
+      for(const drive of perf.disks){
+        const total=Number(drive.size)||0,used=Math.max(0,total-(Number(drive.free)||0));
+        if(!total)continue;
+        const label=document.createElement("div");label.className="disk-usage";
+        label.textContent=drive.name+" · "+(used/1073741824).toFixed(1)+" / "+(total/1073741824).toFixed(1)+" GB ("+Math.round(used/total*100)+"%)";
+        const bar=document.createElement("div");bar.className="server-meter";
+        const fill=document.createElement("span");fill.style.width=Math.max(0,Math.min(100,used/total*100))+"%";bar.append(fill);disk.append(label,bar)
+      }section.append(disk)
+    }
     $("selectedServerWorkspace").after(section)
    }catch(e){failure(e)}
   }
