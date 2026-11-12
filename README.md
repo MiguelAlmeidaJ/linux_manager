@@ -634,3 +634,33 @@ O repositório inclui o código `agents/server_manager_launcher.py` para um inic
 **Instalação:** extraia todo o ZIP gerado em pasta privada no Windows. Se ServerManager.exe estiver presente, revise os scripts e execute-o; ele invocará PowerShell com UAC e instalará o serviço com inicialização automática. Remova ZIP e pasta com enrollment.json após finalizar, pois contêm token privado. Use Update-Agent.ps1 para atualizar um agente existente sem trocar token.
 
 **Observação:** o ServerManager.exe aqui instala o **agente do Server Manager no Windows**, não o pacote XAMPP. A instalação automática do XAMPP, Apache, PHP e MySQL como serviços gerenciáveis é um recurso futuro diferente, que demandará um fluxo de instalação explícito e backups.
+
+## Comandos de instalação no painel e ações remotas no Windows
+
+Em **Servidores → Instalação e manutenção do Windows Server**, há um guia recolhível com botões de copiar para os comandos PowerShell de instalação, criação da configuração de monitoramento MySQL e atualização sem trocar o token. Os arquivos devem ser extraídos do ZIP do próprio servidor, e o PowerShell deve ser executado como Administrador.
+
+Instalar serviço de agente: `powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-Agent.ps1`
+
+Configurar usuário MySQL previamente criado (somente leitura): `powershell -NoProfile -ExecutionPolicy Bypass -File .\Configure-Existing-MySQL.ps1`
+
+Atualizar agente existente sem modificar monitoramento MySQL: `powershell -NoProfile -ExecutionPolicy Bypass -File .\Update-Agent.ps1 -SkipMySQL`
+
+Se precisar criar manualmente usuário de monitoramento no MySQL local, use uma conta administrativa do banco e privilégios `SHOW DATABASES`, apenas no localhost e 127.0.0.1. Nunca reutilize a senha root no monitor.
+
+### PM2 e serviços XAMPP remotos
+
+O painel oferece ações remotas **iniciar/parar/reiniciar/recarregar/consultar logs** de processos PM2 no Windows Server selecionado. **Recarregar** corresponde a `pm2 reload`; não faz Git pull, build nem deploy. Ações XAMPP incluem logs de erro do Apache e MySQL e reinicialização individual de serviços Windows registrados. O botão **Reiniciar XAMPP (Apache + MySQL)** aparece somente quando ambos estão registrados como serviços Windows e reinicia primeiro o banco, depois Apache. O agente não tenta matar indiscriminadamente processos do XAMPP, não usa shell arbitrário e não permite controlar outros serviços como ServerManagerAgent.
+
+Requisitos: conta **admin** do Server Manager, HTTPS com proxy confiável, Windows Server online, e agente atualizado com `windows_actions.py`. Operações remotas são enfileiradas no SQLite, entregues no heartbeat existente e respondidas no contato seguinte. Só uma ação pendente por servidor, com expiração; ações já entregues não são reenviadas. A fila mostra pedido, usuário, estado e resultado. O pedido fica registrado na auditoria do painel. Reiniciar banco ou Apache pode derrubar conexões; use fora dos horários críticos.
+
+O agente valida novamente nomes existentes de PM2 e serviço, evitando que o painel envie argumentos de comando arbitrários. Para PM2 é necessário configurar no `C:\ProgramData\ServerManager\agent.json` o caminho `pm2_command` e o `pm2_home` da conta que mantém o daemon. O serviço Windows utiliza LocalSystem por padrão e nem sempre consegue acessar um PM2 de outra conta: se houver problemas de permissões, ajuste o contexto do serviço com cuidado. Os logs podem conter informações sensíveis e ficam restritos às contas administrativas.
+
+### Histórico de recursos
+
+Armazenamos no SQLite `node_metrics` amostras por servidor de CPU e percentual de RAM fornecidas pelo agente. O painel apresenta um gráfico SVG das últimas 120 amostras (com retenção de até 24 horas), ordenação de processos por CPU ou RAM, RAM utilizada/total e consumo de disco. Os dados são reportados pelo próprio Windows, não são medidos a partir do controlador Linux. O gráfico não aparece antes de dois relatórios válidos.
+
+### Upgrade
+
+Atualize o controlador com `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit` e `sudo systemctl restart linux-manager`. Faça Ctrl+Shift+R no navegador. Baixe novamente a atualização do agente pelo cartão do Windows Server: o ZIP já inclui `windows_actions.py` além de `windows_metrics.py` e scripts atuais. Execute `Update-Agent.ps1 -SkipMySQL` em PowerShell elevado. Não gere um novo instalador, pois **Gerar instalador** revoga o token existente.
+
+A implementação necessita validação real de ações remotas no Windows Server e de reinício do Apache/MySQL em ambiente controlado. As operações não devem ser consideradas prontas para produção até testes funcionais e de permissões terem sido realizados.
