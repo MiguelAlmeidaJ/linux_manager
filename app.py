@@ -352,6 +352,13 @@ def server_list(request: Request):
     return nodes.listing()
 
 
+@app.get("/api/servers/{node_id}/metrics")
+def server_metrics_history(node_id: int, request: Request):
+    assert_auth(request)
+    nodes.detail(node_id)
+    return nodes.metrics_history(node_id)
+
+
 @app.get("/api/servers/{node_id}")
 def server_details(node_id: int, request: Request):
     assert_auth(request)
