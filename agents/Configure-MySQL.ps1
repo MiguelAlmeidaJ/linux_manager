@@ -15,7 +15,17 @@ if (Test-Path -LiteralPath $monitorFile) {
   Write-Host "Configuracao MySQL existente preservada."
   return
 }
-$choice = Read-Host "Criar usuario MySQL lm_monitor para listar bancos? [S/n]"
+$choice = Read-Host "O usuario lm_monitor ja existe no banco? [S/n]"
+if ($choice -notmatch '^[nN]') {
+  $existing = Join-Path $PSScriptRoot "Configure-Existing-MySQL.ps1"
+  if (-not (Test-Path -LiteralPath $existing -PathType Leaf)) {
+    throw "Configure-Existing-MySQL.ps1 nao encontrado no pacote. Baixe o ZIP atualizado."
+  }
+  & $existing
+  return
+}
+$choice = Read-Host "Criar novo usuario MySQL lm_monitor usando credenciais administrativas? [s/N]"
+if ($choice -notmatch '^[sS]') { Write-Host "Configuracao MySQL ignorada."; return }
 if ($choice -match '^[nN]') { Write-Host "Monitoramento ignorado."; return }
 $adminUser = Read-Host "Usuario administrativo do MySQL [root]"
 if ([string]::IsNullOrWhiteSpace($adminUser)) { $adminUser = "root" }
