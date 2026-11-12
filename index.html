@@ -910,9 +910,9 @@ function fillRemoteTable(body, rows, fields, emptyMessage){
 
 async function runRemoteAction(kind,target){
  if(selectedNode==="local"||currentRole!=="admin")return;
- const friendly={start:"iniciar",stop:"parar",restart:"reiniciar",reload:"recarregar",logs:"consultar logs de",service_restart:"reiniciar serviço"};
+ const friendly={start:"iniciar",stop:"parar",restart:"reiniciar",reload:"recarregar",logs:"consultar logs de",service_restart:"reiniciar serviço",service_logs:"consultar logs de"};
  const verb=friendly[kind]||kind;
- if(kind!=="logs"&&!confirm("Confirma "+verb+" "+target+" no servidor Windows selecionado?\nA ação pode afetar aplicações em produção."))return;
+ if(!["logs","service_logs"].includes(kind)&&!confirm("Confirma "+verb+" "+target+" no servidor Windows selecionado?\nA ação pode afetar aplicações em produção."))return;
  try{
   const response=await api("/servers/"+encodeURIComponent(selectedNode)+"/actions","POST",{kind,target});
   notify("Ação enviada para a fila do agente: "+verb+" "+target);
@@ -969,10 +969,14 @@ async function loadRemotePage(page){
     const tr=document.createElement("tr");
     for(const value of [p.name,p.type,p.status]){const td=document.createElement("td");td.textContent=value||"—";tr.append(td)}
     const td=document.createElement("td");
+    const isApache=/apache|httpd/i.test(p.name),isMysql=/mysql|mariadb/i.test(p.name);
+    if(currentRole==="admin"&&(isApache||isMysql)){
+     const logs=document.createElement("button");logs.className="ghost";logs.textContent="Logs";logs.onclick=()=>runRemoteAction("service_logs",isApache?"apache":"mysql");td.append(logs)
+    }
     if(currentRole==="admin"&&p.type==="Windows service"&&["apache","apache2.4","mysql","mysql80","mariadb"].includes(String(p.name).toLowerCase())){
       const button=document.createElement("button");button.className="ghost";button.textContent="Reiniciar";
       button.onclick=()=>runRemoteAction("service_restart",p.name);td.append(button)
-    }else{td.textContent="Somente leitura"}
+    }else if(!td.children.length){td.textContent="Somente leitura"}
     tr.append(td);root.append(tr)
    }
    if(!services.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=4;td.textContent="Nenhum serviço reportado";tr.append(td);root.append(tr)}
