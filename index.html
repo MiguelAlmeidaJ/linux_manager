@@ -868,6 +868,7 @@ function updateServerContext(){
 }
 $("selectedServer").onchange=async event=>{
  selectedNode=event.target.value;
+ serverRenderGeneration++;
  updateServerContext();
  if(selectedNode!=="local")switchTab("servers");
  else switchTab("dashboard");
@@ -917,9 +918,12 @@ async function loadRemotePage(page){
  }catch(e){failure(e)}
 }
 document.querySelectorAll("[data-remote-refresh]").forEach(button=>button.onclick=()=>loadRemotePage(button.dataset.remoteRefresh));
+let serverRenderGeneration=0;
 async function loadServers(){
+ const generation=++serverRenderGeneration;
  try {
   const servers=await api("/servers");
+  if(generation!==serverRenderGeneration)return;
   registeredServers=servers;
   const scoped=selectedNode==="local"?servers:servers.filter(item=>String(item.id)===selectedNode);
   const workspace=$("selectedServerWorkspace");workspace.replaceChildren();
@@ -936,6 +940,7 @@ async function loadServers(){
   if(selectedNode!=="local"&&scoped.length){
    try{
     const detail=await api("/servers/"+encodeURIComponent(selectedNode));
+    if(generation!==serverRenderGeneration)return;
     const perf=detail.performance||{};
     const section=document.createElement("div");section.id="serversMetrics";
     section.className="server-metrics";
