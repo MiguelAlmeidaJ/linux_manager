@@ -301,7 +301,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <button data-tab="dashboard" class="local-nav" class="active"><span class="ico" data-icon="layout-dashboard" aria-hidden="true"></span>Visão geral</button>
 <button data-tab="servers"><span class="ico" data-icon="server" aria-hidden="true"></span>Servidores</button>
 <button data-tab="projects" class="local-nav"><span class="ico" data-icon="layers-3" aria-hidden="true"></span>Aplicações</button>
-<button data-tab="pm2" class="local-nav"><span class="ico" data-icon="activity" aria-hidden="true"></span>Processos PM2</button>
+<button data-tab="pm2"><span class="ico" data-icon="activity" aria-hidden="true"></span>Processos PM2</button>
 <button data-tab="docker" class="local-nav"><span class="ico" data-icon="boxes" aria-hidden="true"></span>Containers</button>
 <button data-tab="databases" class="local-nav"><span class="ico" data-icon="database" aria-hidden="true"></span>Bancos de Dados</button>
 <button data-tab="ports" class="local-nav"><span class="ico" data-icon="network" aria-hidden="true"></span>Portas de rede</button>
@@ -370,7 +370,7 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="wide"><button>Clonar repositório</button><p class="help">Após clonar, configure runtime, porta e deploy no cartão da aplicação.</p></div></form></div>
 <div id="projectList"><div class="empty"><span class="glyph">◇</span>Carregando aplicações...</div></div>
 </section>
-<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><div id="pm2Overview" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px"></div><div class="panel"><div class="section-top"><h2>Processos em execução</h2><span class="badge" id="pm2Count">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
+<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><p id="pm2ScopeInfo" class="small muted">Servidor principal</p><div id="pm2Overview" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px"></div><div class="panel"><div class="section-top"><h2>Processos em execução</h2><span class="badge" id="pm2Count">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
 <section id="docker" class="hide">
 <div class="heading"><div><h1>Containers e serviços</h1><p>Gerencie serviços compartilhados sem interromper containers de outras aplicações.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div>
 <div class="panel"><div class="section-top"><div><h2>Catálogo de serviços</h2><p class="small muted">Instâncias compartilhadas · acesso local · volumes persistentes</p></div><span class="badge">Gerenciado</span></div><div id="managedServiceList" class="service-grid"></div><div class="help" style="margin-top:15px">SQL Server e serviços adicionais exigirão implantação dedicada e dimensionamento de recursos. Nenhum serviço será exposto publicamente pelo painel.</div></div>
@@ -545,7 +545,7 @@ $("accountSettings").onclick=()=>{$("accountMenu").open=false;switchTab("setting
 document.addEventListener("click",event=>{if($("accountMenu").open&&!$("accountMenu").contains(event.target))$("accountMenu").open=false});
 document.addEventListener("keydown",event=>{if(event.key==="Escape")$("accountMenu").open=false});
 $("logout").onclick=async()=>{$("accountMenu").open=false;try{await api("/logout","POST")}catch{}disconnect();loginView()};
-function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;if(selectedNode!=="local"&&["dashboard","projects","pm2","docker","databases","ports","terminal"].includes(page))page="servers";$("accountMenu").open=false;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
+function switchTab(page){if((page==="users"||page==="audit"||page==="settings")&&currentRole!=="admin")return;if(selectedNode!=="local"&&["dashboard","projects","docker","databases","ports","terminal"].includes(page))page="servers";$("accountMenu").open=false;active=page;Object.keys(pages).forEach(id=>$(id).classList.toggle("hide",id!==page));document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===page));$("crumb").textContent=pages[page];
 if(page==="servers")loadServers();if(page==="settings")loadBranding();if(page==="users")loadUsers();if(page==="audit")loadAudit();if(page==="projects"){loadSSH();loadProjects();}if(page==="pm2")loadPM2();if(page==="docker")loadDocker();if(page==="databases")loadDatabases();if(page==="ports")loadPorts();if(page==="terminal"&&!terminalEnabled)$("term").textContent="Terminal desativado no servidor (TERMINAL_ENABLED=false)."}
 document.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
 $("goProjects").onclick=()=>switchTab("projects");$("refresh").onclick=refresh;$("clearOutput").onclick=()=>result("Console limpo.");
@@ -984,20 +984,32 @@ $("addServerForm").onsubmit=async event=>{
 };
 async function loadPM2(){
  try {
-  const processes=await api("/pm2"),online=processes.filter(p=>p.pm2_env?.status==="online").length;
+  const remote=selectedNode!=="local";
+  let processes=[];
+  if(remote){
+   const detail=await api("/servers/"+encodeURIComponent(selectedNode));
+   $("pm2ScopeInfo").textContent="Servidor: "+detail.name+" · "+(detail.addresses?.join(", ")||"IP não informado")+" · remoto, somente leitura";
+   processes=(detail.pm2||[]).map(p=>({name:p.name,pid:p.pid,
+     pm2_env:{status:p.status,restart_time:Number(p.restarts)||0},
+     monit:{cpu:null,memory:Number(p.memory)||0}}));
+  }else{
+   processes=await api("/pm2");
+   $("pm2ScopeInfo").textContent="Servidor principal · controles locais habilitados";
+  }
+  const online=processes.filter(p=>p.pm2_env?.status==="online").length;
   $("pm2Count").textContent=processes.length+" processos";
   $("pm2Overview").innerHTML=[["Processos",processes.length],["Online",online],["Reinícios",processes.reduce((a,p)=>a+(p.pm2_env?.restart_time||0),0)]].map(([label,value])=>'<div class="pm2-stat"><span>'+label+'</span><strong>'+value+'</strong></div>').join("");
   const root=$("pm2Table");root.replaceChildren();
   if(!processes.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=7;td.textContent="Nenhum processo PM2";tr.append(td);root.append(tr)}
   for(const p of processes){
    const tr=document.createElement("tr");
-   const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",(p.monit?.cpu??0)+"%",((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
+   const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",(p.monit?.cpu==null?"—":p.monit.cpu+"%"),((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
    fields.forEach((value,i)=>{const td=document.createElement("td");
     if(i===1){const tag=document.createElement("span");tag.className="status "+(value==="online"?"":"off");tag.textContent=String(value);td.append(tag)}
     else{td.textContent=String(value);if(i===0)td.style.fontWeight="650"}
     tr.append(td)});
    const td=document.createElement("td"),actions=document.createElement("div");actions.className="pm2-acts";
-   for(const [label,action] of [["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
+   for(const [label,action] of remote?[]:[["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
     const button=document.createElement("button");button.type="button";button.className="ghost";button.textContent=label;
     button.disabled=(action==="start"&&p.pm2_env?.status==="online")||(action==="stop"&&p.pm2_env?.status!=="online");
     button.onclick=async()=>{
