@@ -4,6 +4,8 @@ from threading import Event, Lock, Thread
 import hmac
 import ipaddress
 import json
+import io
+import zipfile
 import os
 import pty
 import re
@@ -18,7 +20,7 @@ from urllib.parse import urlparse
 
 import psutil
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from pydantic import BaseModel, Field
 import deploy_jobs as dj
@@ -344,6 +346,53 @@ def server_create(payload: nodes.NodeCreate, request: Request):
     identities.log(actor["id"], actor["username"], "server.created",
                    "server:" + str(result["id"]), 201, request.client.host if request.client else "")
     return JSONResponse(result, headers={"Cache-Control": "no-store"})
+
+
+class AgentInstallerRequest(BaseModel):
+    token: str = Field(min_length=40, max_length=160)
+
+
+@app.post("/api/servers/{node_id}/installer")
+def server_installer(node_id: int, payload: AgentInstallerRequest, request: Request):
+    actor = assert_admin(request)
+    require_secure_database_admin(request)
+    if nodes.verify_token(node_id, payload.token) != "windows":
+        raise HTTPException(400, "Instalador disponível apenas para Windows Server")
+    # Use source files from this local, version-controlled application.
+    src = Path(__file__).resolve().parent / "agents"
+    files = ("Install-Agent.ps1", "windows_agent.py", "windows_service.py")
+    for filename in files:
+        if not (src / filename).is_file() or (src / filename).is_symlink():
+            raise HTTPException(503, "Arquivos de instalação não encontrados")
+    base_url = os.environ.get("PUBLIC_SERVER_URL", "").strip().rstrip("/")
+    origin = urlparse(request.headers.get("origin", ""))
+    if not base_url and origin.scheme == "https" and origin.netloc == request.headers.get("host"):
+        base_url = origin.scheme + "://" + origin.netloc
+    if not base_url.startswith("https://"):
+        raise HTTPException(400, "Configure PUBLIC_SERVER_URL com o domínio HTTPS do painel")
+    archive = io.BytesIO()
+    with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as target:
+        for filename in files:
+            target.write(src / filename, filename)
+        target.writestr("enrollment.json", json.dumps({
+            "server_url": base_url, "node_id": node_id, "token": payload.token
+        }, ensure_ascii=False))
+        target.writestr("LEIA-ME.txt",
+            "Server Manager - agente Windows\n"
+            "PACOTE CONFIDENCIAL: contém token de autenticação.\n"
+            "1. Extraia o ZIP em pasta privada no Windows Server.\n"
+            "2. Revise Install-Agent.ps1 e execute em PowerShell como Administrador.\n"
+            "3. Para executar: powershell -NoProfile -ExecutionPolicy Bypass -File .\\Install-Agent.ps1\n"
+            "4. Confirme em services.msc: Server Manager Agent (Automático).\n"
+            "5. Apague o ZIP e a pasta extraída após instalar.\n"
+            "6. Se necessário, ajuste pm2_home em C:\\ProgramData\\ServerManager\\agent.json.\n")
+    identities.log(actor["id"], actor["username"], "server.installer.download",
+                   "server:" + str(node_id), 200, request.client.host if request.client else "")
+    return Response(archive.getvalue(), media_type="application/zip", headers={
+        "Content-Disposition": 'attachment; filename="server-manager-windows-agent.zip"',
+        "Cache-Control": "no-store, private", "Pragma": "no-cache",
+        "X-Content-Type-Options": "nosniff"
+    })
 
 
 @app.post("/api/servers/{node_id}/disable")
