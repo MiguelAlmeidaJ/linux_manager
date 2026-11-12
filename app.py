@@ -326,6 +326,26 @@ def branding_reset(kind: str, request: Request):
     return result
 
 
+@app.get("/api/servers/local")
+def local_server_network(request: Request):
+    assert_auth(request)
+    addresses = []
+    try:
+        for interface_addresses in psutil.net_if_addrs().values():
+            for value in interface_addresses:
+                address = value.address.split("%")[0]
+                try:
+                    ip = ipaddress.ip_address(address)
+                    if not ip.is_loopback and not ip.is_unspecified and not ip.is_multicast:
+                        if str(ip) not in addresses:
+                            addresses.append(str(ip))
+                except ValueError:
+                    continue
+    except (OSError, psutil.Error):
+        pass
+    return {"hostname": os.uname().nodename, "addresses": addresses[:16]}
+
+
 @app.get("/api/servers")
 def server_list(request: Request):
     assert_auth(request)
