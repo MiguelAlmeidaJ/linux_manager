@@ -14,6 +14,7 @@ import subprocess
 import time
 import urllib.error
 import urllib.request
+import windows_metrics
 
 CONFIG_PATH = Path(os.environ.get("LM_AGENT_CONFIG", str(Path(os.environ.get("ProgramData", "C:\\ProgramData")) / "ServerManager" / "agent.json")))
 try:
@@ -230,11 +231,15 @@ def network_addresses():
 def send():
     if not BASE.startswith("https://") or not NODE.isdigit() or not TOKEN:
         raise RuntimeError("Defina LM_SERVER_URL=https://..., LM_NODE_ID e LM_NODE_TOKEN")
+    performance = windows_metrics.collect()
     report = {"hostname": platform.node() or "windows",
               "os_version": platform.platform()[:200],
               "pm2": windows_pm2_ports(pm2_processes()), "services": windows_services(),
               "php_projects": php_projects(), "mysql": mysql_databases(),
-              "addresses": network_addresses()}
+              "addresses": network_addresses(),
+              "cpu_percent": performance.get("cpu_percent"),
+              "memory_percent": performance.get("memory_percent"),
+              "performance": performance}
     data = json.dumps(report).encode("utf-8")
     request = urllib.request.Request(
         BASE + "/api/agent/nodes/" + NODE + "/heartbeat", data=data,
