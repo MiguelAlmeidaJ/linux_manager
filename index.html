@@ -368,7 +368,7 @@ GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'127.0.0.1';</pre><p>Depois, no Powe
 <dialog id="addServerDialog" class="user-dialog"><form id="addServerForm" class="formgrid"><div class="wide"><div class="section-top"><h2>Adicionar servidor</h2><button type="button" class="ghost" id="cancelAddServer">Fechar</button></div><p class="help">Cadastre o host e configure o agente no Windows Server. Não é necessário expor WinRM ou RDP à internet.</p></div><label class="field wide">Nome do servidor<input name="name" required minlength="2" maxlength="80" placeholder="windows-producao-01"></label><label class="field wide">Sistema operacional<select name="os_type"><option value="windows">Windows Server</option><option value="linux">Linux (agente futuro)</option></select></label><div class="wide actions" style="justify-content:flex-end"><button type="submit">Criar servidor</button></div></form></dialog>
 <section id="remotephp" class="hide"><div class="heading"><div><h1>Projetos PHP</h1><p id="phpServerLabel">Projetos PHP do Windows selecionado.</p></div><button class="ghost" data-remote-refresh="remotephp">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Aplicações e VirtualHosts</h2><span class="badge" id="phpRemoteCount">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Projeto</th><th>Tecnologia</th><th>Diretório</th><th>Origem</th></tr></thead><tbody id="phpRemoteBody"></tbody></table></div></div></section>
 <section id="remotedb" class="hide"><div class="heading"><div><h1>Bancos MySQL / MariaDB</h1><p id="dbServerLabel">Bancos reportados pelo Windows selecionado.</p></div><button class="ghost" data-remote-refresh="remotedb">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Bancos encontrados</h2><span class="badge" id="dbRemoteCount">—</span></div><p id="dbRemoteStatus" class="remote-db-state"></p><div class="table-wrap"><table class="table"><thead><tr><th>Banco de dados</th><th>Servidor</th></tr></thead><tbody id="dbRemoteBody"></tbody></table></div><p class="small muted">Inventário somente leitura. Consultas e alterações de bancos não são executadas.</p></div></section>
-<section id="remotexampp" class="hide"><div class="heading"><div><h1>Serviços XAMPP / Windows</h1><p id="xamppServerLabel">Apache, MySQL/MariaDB, PHP e serviços registrados.</p></div><button class="ghost" data-remote-refresh="remotexampp">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Serviços monitorados</h2><span class="badge" id="xamppRemoteCount">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Serviço</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody id="xamppRemoteBody"></tbody></table></div></div></section>
+<section id="remotexampp" class="hide"><div class="heading"><div><h1>Serviços XAMPP / Windows</h1><p id="xamppServerLabel">Apache, MySQL/MariaDB, PHP e serviços registrados.</p></div><button class="ghost" data-remote-refresh="remotexampp">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Serviços monitorados</h2><span class="badge" id="xamppRemoteCount">—</span></div><div id="xamppActions" class="actions" style="margin-bottom:15px"></div><div class="table-wrap"><table class="table"><thead><tr><th>Serviço</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody id="xamppRemoteBody"></tbody></table></div></div></section>
 <section id="projects" class="hide">
 <div class="heading"><div><h1>Aplicações</h1><p>Repositórios Git, deploy, portas e gerenciamento de processos.</p></div><button id="showCreate">+ Nova aplicação</button></div>
 <details class="panel ssh-accordion" id="sshPanel" style="margin-bottom:18px">
@@ -910,7 +910,7 @@ function fillRemoteTable(body, rows, fields, emptyMessage){
 
 async function runRemoteAction(kind,target){
  if(selectedNode==="local"||currentRole!=="admin")return;
- const friendly={start:"iniciar",stop:"parar",restart:"reiniciar",reload:"recarregar",logs:"consultar logs de",service_restart:"reiniciar serviço",service_logs:"consultar logs de"};
+ const friendly={start:"iniciar",stop:"parar",restart:"reiniciar",reload:"recarregar",logs:"consultar logs de",service_restart:"reiniciar serviço",service_logs:"consultar logs de",xampp_restart:"reiniciar Apache e MySQL do"};
  const verb=friendly[kind]||kind;
  if(!["logs","service_logs"].includes(kind)&&!confirm("Confirma "+verb+" "+target+" no servidor Windows selecionado?\nA ação pode afetar aplicações em produção."))return;
  try{
@@ -964,6 +964,14 @@ async function loadRemotePage(page){
    $("xamppServerLabel").textContent=detail.name+" · "+(detail.addresses||[]).join(", ");
    $("xamppRemoteCount").textContent=(detail.services||[]).length+" serviços";
    const services=detail.services||[];
+   const registered=services.filter(p=>p.type==="Windows service").map(p=>String(p.name).toLowerCase());
+   const canRestart=registered.some(name=>["apache","apache2.4"].includes(name))&&
+     registered.some(name=>["mysql","mysql80","mariadb"].includes(name));
+   const toolbar=$("xamppActions");
+   if(toolbar){toolbar.replaceChildren();if(currentRole==="admin"&&canRestart){
+    const restart=document.createElement("button");restart.className="ghost";restart.textContent="Reiniciar XAMPP (Apache + MySQL)";
+    restart.onclick=()=>runRemoteAction("xampp_restart","xampp");toolbar.append(restart)
+   }}
    const root=$("xamppRemoteBody");root.replaceChildren();
    for(const p of services){
     const tr=document.createElement("tr");
