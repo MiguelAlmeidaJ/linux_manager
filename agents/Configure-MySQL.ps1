@@ -76,9 +76,13 @@ try {
   $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
   try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
   $password = ([BitConverter]::ToString($bytes)).Replace("-", "").ToLowerInvariant()
+  # MariaDB/MySQL can distinguish localhost and 127.0.0.1 for TCP.
   $query = "CREATE USER IF NOT EXISTS 'lm_monitor'@'localhost' IDENTIFIED BY '$password'; " +
            "ALTER USER 'lm_monitor'@'localhost' IDENTIFIED BY '$password'; " +
-           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'localhost';"
+           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'localhost'; " +
+           "CREATE USER IF NOT EXISTS 'lm_monitor'@'127.0.0.1' IDENTIFIED BY '$password'; " +
+           "ALTER USER 'lm_monitor'@'127.0.0.1' IDENTIFIED BY '$password'; " +
+           "GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'127.0.0.1';"
   [void](Invoke-LocalMySQL $temporary $query)
   $lines = @("[client]", "host=127.0.0.1", "port=3306", "user=lm_monitor", "password=$password")
   [IO.File]::WriteAllText($testConfig, ($lines -join [Environment]::NewLine), $utf8)
