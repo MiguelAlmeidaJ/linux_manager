@@ -40,6 +40,7 @@ class Heartbeat(BaseModel):
     php_projects: list[dict] = Field(default_factory=list, max_length=100)
     mysql: dict = Field(default_factory=dict)
     performance: dict = Field(default_factory=dict)
+    action_result: dict | None = Field(default=None)
 
 
 def connect():
@@ -75,6 +76,15 @@ def connect():
             db.execute("ALTER TABLE nodes ADD COLUMN mysql_json TEXT NOT NULL DEFAULT '{}'")
         if "performance_json" not in columns:
             db.execute("ALTER TABLE nodes ADD COLUMN performance_json TEXT NOT NULL DEFAULT '{}'")
+        db.execute("""CREATE TABLE IF NOT EXISTS remote_actions (
+            id TEXT PRIMARY KEY, node_id INTEGER NOT NULL,
+            kind TEXT NOT NULL, target TEXT NOT NULL,
+            state TEXT NOT NULL, created_at INTEGER NOT NULL,
+            delivered_at INTEGER, finished_at INTEGER,
+            result TEXT NOT NULL DEFAULT '',
+            requested_by TEXT NOT NULL
+        )""")
+        db.execute("CREATE INDEX IF NOT EXISTS remote_actions_node ON remote_actions(node_id,created_at)")
         db.commit()
     os.chmod(NODES_DB, 0o600)
 
@@ -198,6 +208,79 @@ def _performance(payload):
             "top_processes": top, "disks": disks}
 
 
+ACTION_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,119}$")
+VALID_ACTIONS = frozenset(("start", "stop", "restart", "reload", "logs"))
+ALLOWED_XAMPP_SERVICES = frozenset(("apache", "apache2.4", "mysql", "mysql80", "mariadb"))
+
+
+def queue_action(node_id, kind, target, actor):
+    """Queue one typed operation; no arbitrary code or unmanaged process names."""
+    if kind not in VALID_ACTIONS and kind != "service_restart":
+        raise HTTPException(400, "Ação remota não permitida")
+    with _LOCK, _db() as db:
+        node = db.execute("SELECT * FROM nodes WHERE id=?", (node_id,)).fetchone()
+        if not node or not node["enabled"] or node["os_type"] != "windows":
+            raise HTTPException(404, "Windows Server não cadastrado")
+        now = int(time.time())
+        if not node["last_seen"] or now - node["last_seen"] > MAX_AGE:
+            raise HTTPException(409, "Agente offline; nenhuma ação será enviada")
+        if kind == "service_restart":
+            names = {p.get("name", "").lower() for p in json.loads(node["services_json"])
+                     if p.get("type") == "Windows service"}
+            if target.lower() not in ALLOWED_XAMPP_SERVICES or target.lower() not in names:
+                raise HTTPException(400, "Serviço XAMPP não está registrado como serviço Windows")
+        else:
+            if not ACTION_NAME_RE.fullmatch(target):
+                raise HTTPException(400, "Nome do processo PM2 inválido")
+            known = {p.get("name") for p in json.loads(node["pm2_json"])}
+            if target not in known:
+                raise HTTPException(404, "Processo não reportado pelo agente")
+        pending = db.execute("SELECT COUNT(*) FROM remote_actions WHERE node_id=? AND state IN ('queued','delivered')",
+                             (node_id,)).fetchone()[0]
+        if pending:
+            raise HTTPException(409, "Outra ação está em execução ou aguardando confirmação")
+        identifier = secrets.token_hex(16)
+        db.execute("INSERT INTO remote_actions(id,node_id,kind,target,state,created_at,requested_by) VALUES(?,?,?,?,?,?,?)",
+                   (identifier, node_id, kind, target, "queued", now, str(actor)[:100]))
+    return {"id": identifier, "status": "queued", "kind": kind, "target": target}
+
+
+def list_actions(node_id, limit=20):
+    with _db() as db:
+        return [dict(row) for row in db.execute(
+            "SELECT id,kind,target,state,created_at,finished_at,result,requested_by "
+            "FROM remote_actions WHERE node_id=? ORDER BY created_at DESC LIMIT ?",
+            (node_id, min(max(1,limit),50))).fetchall()]
+
+
+def _deliver_action(db, node_id, now):
+    db.execute("UPDATE remote_actions SET state='expired',finished_at=?,result='Sem confirmação do agente' "
+               "WHERE node_id=? AND state='delivered' AND delivered_at < ?", (now,node_id,now-120))
+    db.execute("UPDATE remote_actions SET state='expired',finished_at=?,result='Ação expirou na fila' "
+               "WHERE node_id=? AND state='queued' AND created_at < ?", (now,node_id,now-300))
+    row = db.execute("SELECT id,kind,target FROM remote_actions WHERE node_id=? AND state='queued' "
+                     "ORDER BY created_at LIMIT 1", (node_id,)).fetchone()
+    if row:
+        db.execute("UPDATE remote_actions SET state='delivered',delivered_at=? WHERE id=?", (now,row["id"]))
+        return dict(row)
+    return None
+
+
+def _receive_result(db, node_id, report, now):
+    if not isinstance(report, dict):
+        return
+    identifier = report.get("id")
+    if not isinstance(identifier, str) or not re.fullmatch(r"[a-f0-9]{32}", identifier):
+        return
+    state = "done" if report.get("ok") is True else "error"
+    result = str(report.get("output") or "")[:12000]
+    result = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", result)
+    result = "".join(ch for ch in result if ch in "\n\r\t" or ord(ch) >= 32)
+    db.execute("UPDATE remote_actions SET state=?,finished_at=?,result=? "
+               "WHERE id=? AND node_id=? AND state='delivered'",
+               (state,now,result,identifier,node_id))
+
+
 def heartbeat(node_id, bearer, body):
     if not bearer.startswith("Bearer ") or len(bearer) > 200:
         raise HTTPException(401, "Token inválido")
@@ -213,6 +296,7 @@ def heartbeat(node_id, bearer, body):
         except ValueError:
             continue
     with _LOCK, _db() as db:
+        _receive_result(db,node_id,body.action_result,int(time.time()))
         pm2 = _clean(body.pm2, ("name", "status", "pid", "restarts", "memory"))
         for cleaned, original in zip(pm2, [x for x in body.pm2 if isinstance(x, dict)]):
             cleaned["ports"] = _clean_ports(original.get("ports", []))
@@ -230,8 +314,9 @@ def heartbeat(node_id, bearer, body):
                    (int(time.time()), body.hostname, body.os_version, body.cpu_percent,
                     body.memory_percent, json.dumps(pm2), json.dumps(services), json.dumps(addresses),
                     json.dumps(php), json.dumps(mysql_clean), json.dumps(performance), node_id))
+        command = _deliver_action(db,node_id,int(time.time()))
         db.commit()
-    return {"ok": True}
+    return {"ok": True, "action": command}
 
 
 def rotate_token(node_id):
