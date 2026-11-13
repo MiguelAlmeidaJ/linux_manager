@@ -1086,6 +1086,8 @@ def project_status(request: Request):
             "restarts": sum(p.get("pm2_env", {}).get("restart_time", 0) or 0 for p in matched),
             "process_count": len(matched),
             "online_count": sum(p.get("pm2_env", {}).get("status") == "online" for p in matched),
+            "cpu_percent": round(sum(float(p.get("monit", {}).get("cpu") or 0) for p in matched), 1),
+            "memory_bytes": sum(int(p.get("monit", {}).get("memory") or 0) for p in matched),
         })
     return result
 
