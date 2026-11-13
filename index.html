@@ -518,6 +518,7 @@ const ICON_PATHS={
  "boxes":'<path d="M2 10 12 5l10 5-10 5-10-5Z"/><path d="m2 10 0 7 10 5 10-5v-7"/><path d="M12 15v7"/><path d="m7 7.5 10 5"/>',
  "database":'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
  "network":'<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-4h14v4"/>',
+ "rocket":'<path d="M4.5 16.5c-1.5 1.3-2 4-2 4s2.7-.5 4-2c1.1-1.1 1.2-2.8 0-4-1.2-1.2-2.9-1.1-4 0Z"/><path d="M12 15l-3-3c2-5 6-8 13-9 0 7-4 11-9 13Z"/><circle cx="15" cy="9" r="1.5"/><path d="m9 12-4-1-2 4 4 1m5-1 1 4-4 2-1-4"/>',
  "terminal":'<rect x="2" y="3" width="20" height="18" rx="2"/><path d="m6 8 4 4-4 4M12 16h5"/>',
  "users-round":'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
  "clipboard-list":'<rect x="4" y="4" width="16" height="18" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M8 12h.01M12 12h5M8 16h.01M12 16h5"/>',
@@ -668,8 +669,69 @@ $("hostInfo").innerHTML=[["Host",h.hostname],["CPU",h.cpu_count+" núcleo(s)"],[
 $("summaryApps").className=st.length?"":"empty";$("summaryApps").innerHTML=st.length?st.slice(0,6).map(p=>'<div class="systemrow"><span>◇ '+esc(p.name)+' <span class="muted">:'+p.port+'</span></span><span class="status '+(p.status==="online"?"":"off")+'">'+esc(p.status)+'</span></div>').join(""):'<span class="glyph">◇</span><strong>Nenhuma aplicação cadastrada</strong>Cadastre seu primeiro repositório na aba Aplicações.';
 }catch(e){failure(e)}}
 setInterval(()=>{if(!$("app").classList.contains("hide")&&active==="dashboard")refresh()},6000);
+let appsSSHConfigured=false;
+function updateAppsOverview(){
+ const projects=Array.isArray(latestProjects)?latestProjects:[];
+ const states=Array.isArray(latestStatus)?latestStatus:[];
+ const summary=$("appsSummary");if(!summary)return;
+ summary.replaceChildren();
+ const online=states.reduce((count,item)=>count+(Number(item.online_count)||0),0);
+ const auto=projects.filter(item=>item.auto_deploy===true).length;
+ for(const [value,label,icon,tone] of [
+  [projects.length,"Total de aplicações","layers-3",""],
+  [online,"Processos online","activity","green"],
+  [appsSSHConfigured?1:0,"Chaves SSH configuradas","network","violet"],
+  [auto,"Deploys automáticos ativos","rocket","sky"]]){
+  const card=document.createElement("div");card.className="apps-summary-card "+tone;
+  const iconBox=document.createElement("span");iconBox.className="apps-summary-icon";iconBox.innerHTML=iconSvg(icon);
+  const text=document.createElement("div");text.className="apps-summary-text";
+  const strong=document.createElement("strong");strong.textContent=String(value);
+  const caption=document.createElement("small");caption.textContent=label;text.append(strong,caption);card.append(iconBox,text);summary.append(card);
+ }
+ $("appsProjectTotal").textContent=projects.length+" aplicaç"+(projects.length===1?"ão":"ões");
+ const repos=projects.filter(item=>typeof item.repo==="string"&&item.repo.startsWith("git@"));
+ $("appsSSHRepoCount").textContent=String(repos.length);
+ const root=$("appsSSHRepos");root.replaceChildren();
+ if(!repos.length){
+  const empty=document.createElement("span");empty.className="small muted";
+  empty.textContent="Nenhuma aplicação cadastrada com URL SSH.";root.append(empty)
+ }
+ for(const project of repos.slice(0,5)){
+  const line=document.createElement("div");line.className="apps-ssh-repo";
+  const dot=document.createElement("span");dot.className="apps-repo-dot";
+  const name=document.createElement("span");name.textContent=project.name+" · "+project.repo;
+  line.append(dot,name);root.append(line)
+ }
+ if(repos.length>5){
+  const rest=document.createElement("span");rest.className="small muted";
+  rest.textContent="E mais "+(repos.length-5)+" repositório(s).";root.append(rest)
+ }
+ const filter=$("appsProjectFilter")?.value.trim().toLowerCase()||"";
+ for(const card of $("projectList").querySelectorAll(".proj")){
+  card.classList.toggle("hide",Boolean(filter&&!card.dataset.search?.includes(filter)))
+ }
+}
+function openAppsSSHManager(test=false){
+ const details=$("sshPanel");details.open=true;
+ details.scrollIntoView({behavior:"smooth",block:"start"});
+ if(test)$("sshRepoToTest").focus()
+}
+$("openSSHManager").onclick=()=>openAppsSSHManager();
+$("appsSSHManage").onclick=()=>openAppsSSHManager();
+$("appsSSHCopy").onclick=()=>{if(appsSSHConfigured)$("copySSH").click();else openAppsSSHManager()};
+$("appsSSHTest").onclick=()=>{
+ const first=(latestProjects||[]).find(p=>typeof p.repo==="string"&&p.repo.startsWith("git@"));
+ if(first)$("sshRepoToTest").value=first.repo;
+ openAppsSSHManager(true)
+};
+$("appsProjectFilter").oninput=updateAppsOverview;
 async function loadSSH(){
- try{const d=await api("/ssh/github");$("sshStatus").textContent=d.configured?"Chave configurada":"Pendente";
+ try{const d=await api("/ssh/github");appsSSHConfigured=!!d.configured;$("sshStatus").textContent=d.configured?"Chave configurada":"Pendente";
+ $("appsSSHCardState").textContent=d.configured?"Configurada":"Pendente";
+ $("appsSSHCardState").classList.toggle("missing",!d.configured);
+ $("appsSSHConfigured").textContent=d.configured?"1 chave ativa":"Nenhuma chave configurada";
+ $("appsSSHCardFingerprint").textContent=d.configured?"Chave pública disponível · acesso verificado por repositório":"Configure uma chave SSH para autenticar seus repositórios privados.";
+ updateAppsOverview();
  $("sshEmpty").classList.toggle("hide",d.configured);$("sshReady").classList.toggle("hide",!d.configured);
  if(d.configured)$("sshPublicKey").value=d.public_key;
  }catch(e){failure(e)}
