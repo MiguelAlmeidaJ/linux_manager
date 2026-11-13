@@ -1732,12 +1732,9 @@ function pm2DrawSummary(){
 }
 async function pm2Action(p,action){
  const path="/pm2/processes/"+encodeURIComponent(p.name)+"/"+action;
+ if(pm2Remote)return Boolean(await runRemoteAction(action,p.name));
  if(!["logs"].includes(action)&&!confirm("Confirma "+action+" do processo "+p.name+" no servidor selecionado?"))return false;
  try{
-  if(pm2Remote){
-   const queued=await runRemoteAction(action,p.name);
-   return Boolean(queued)
-  }
   const response=await api(path,"POST",{});
   if(action==="logs")resultMessage(response.output||"Sem logs disponíveis");
   else{notify("Ação PM2 executada: "+p.name);await loadPM2()}
@@ -1836,19 +1833,21 @@ $("pm2StatusFilter").onchange=filterPM2;
 $("pm2AppFilter").onchange=filterPM2;
 $("pm2View").onchange=filterPM2;
 $("pm2SortName").onclick=()=>{pm2SortDesc=!pm2SortDesc;$("pm2SortName").textContent=pm2SortDesc?"Processo ↓":"Processo ↑";filterPM2()};
+setInterval(()=>{if(active==="pm2"&&!$("app").classList.contains("hide"))loadPM2()},30000);
 document.querySelectorAll("[data-pm2-bulk]").forEach(button=>button.onclick=async()=>{
  const action=button.dataset.pm2Bulk;
  const eligible=pm2Filtered.filter(p=>action==="start"?p.pm2_env?.status!=="online":action==="stop"?p.pm2_env?.status==="online":true);
  if(!eligible.length){notify("Nenhum processo elegível nos filtros atuais");return}
  if(pm2Remote&&currentRole!=="admin"){notify("Ações remotas exigem administrador");return}
  const phrase=action==="stop"?"PARAR":"CONFIRMAR";
+ if(pm2Remote&&eligible.length>1)notify("Agente Windows: será enviado apenas o primeiro processo elegível por vez.");
  if(prompt("Executar "+action+" em "+eligible.length+" processo(s)?\nDigite "+phrase+" para confirmar:")!==phrase)return;
  $("pm2BulkMenu").open=false;button.disabled=true;
  try{
   const successes=[],failures=[];
   for(const process of eligible){
    try{
-    if(pm2Remote){const res=await api("/servers/"+encodeURIComponent(selectedNode)+"/actions","POST",{kind:action,target:process.name});successes.push(process.name+" (na fila)");if(eligible.length>1)break}
+    if(pm2Remote){await api("/servers/"+encodeURIComponent(selectedNode)+"/actions","POST",{kind:action,target:process.name});successes.push(process.name+" (na fila)");break}
     else{await api("/pm2/processes/"+encodeURIComponent(process.name)+"/"+action,"POST",{});successes.push(process.name)}
    }catch(e){failures.push(process.name+": "+e.message);if(pm2Remote)break}
   }
