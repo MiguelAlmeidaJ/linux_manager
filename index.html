@@ -487,6 +487,9 @@ const ICON_PATHS={
  "clipboard-list":'<rect x="4" y="4" width="16" height="18" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M8 12h.01M12 12h5M8 16h.01M12 16h5"/>',
  "settings-2":'<path d="M3 6h18M3 18h18"/><circle cx="8" cy="6" r="3"/><circle cx="16" cy="18" r="3"/>',
  "server":'<rect x="3" y="3" width="18" height="8" rx="2"/><rect x="3" y="13" width="18" height="8" rx="2"/><path d="M7 7h.01M7 17h.01"/>',
+ "cpu":'<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 9h6v6H9zM9 1v4M15 1v4M9 19v4M15 19v4M19 9h4M19 15h4M1 9h4M1 15h4"/>',
+ "windows":'<path d="M3 5.5 10.5 4v7H3zM12.5 3.5 21 2v9h-8.5zM3 13h7.5v7L3 18.5zM12.5 13H21v9l-8.5-1.5z"/>',
+ "memory-stick":'<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 6v12M10 6v12M14 6v12M18 6v12M5 18v3M9 18v3M15 18v3M19 18v3"/>',
  "chevron-right":'<path d="m9 18 6-6-6-6"/>',
  "chevron-down":'<path d="m6 9 6 6 6-6"/>',
  "log-out":'<path d="M10 17l5-5-5-5M15 12H3"/><path d="M12 3h6a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3h-6"/>',
@@ -1178,7 +1181,7 @@ async function loadServers(){
         const fill=document.createElement("span");fill.style.width=Math.max(0,Math.min(100,used/total*100))+"%";bar.append(fill);disk.append(label,bar)
       }section.append(disk)
     }
-    $("selectedServerWorkspace").after(section)
+    $("serversList").after(section)
    }catch(e){failure(e)}
   }
   const list=$("serversList");list.replaceChildren();
@@ -1192,8 +1195,8 @@ async function loadServers(){
   for(const [label,value,icon,tone] of [
    ["Servidores gerenciados",String(known.length+1),"server",""],
    ["Online",String(online.length+1),"activity","online"],
-   ["CPU média",average("cpu_percent"),"cpu",""],
-   ["Memória média",average("memory_percent"),"database",""]
+   ["CPU média · remotos",average("cpu_percent"),"cpu",""],
+   ["Memória média · remotos",average("memory_percent"),"memory-stick",""]
   ]){
    const card=document.createElement("div");card.className="fleet-kpi "+tone;
    const symbol=document.createElement("span");symbol.className="fleet-kpi-symbol";symbol.innerHTML=iconSvg(icon);
@@ -1253,7 +1256,7 @@ async function loadServers(){
    if(String(selectedNode)===(local?"local":String(node.id)))card.classList.add("is-selected");
    const header=document.createElement("div");header.className="managed-node-head";
    const symbol=document.createElement("span");symbol.className="node-icon";
-   symbol.innerHTML=iconSvg(local?"server":"server");
+   symbol.innerHTML=iconSvg(local?"server":node.os_type==="windows"?"windows":"server");
    const info=document.createElement("div");
    const title=document.createElement("strong");title.textContent=local?"Servidor principal":node.name;
    const desc=document.createElement("div");desc.className="small muted";
@@ -1266,7 +1269,7 @@ async function loadServers(){
    const cpu=local?(localStats?.cpu_instant??localStats?.cpu):node.cpu_percent;
    const memory=local?localStats?.memory:node.memory_percent;
    metrics.append(createMetric("activity","CPU",formatPct(cpu)),
-                  createMetric("database","Memória",formatPct(memory)));
+                  createMetric("memory-stick","Memória",formatPct(memory)));
    card.append(metrics);
    if(local&&localStats){
     if(!window.__fleetLocalSamples)window.__fleetLocalSamples=[];
