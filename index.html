@@ -762,7 +762,7 @@ async function watchJob(base){
  finally{jobWatches.delete(base)}
 }
 const confDefaults=p=>({runtime:p.runtime||"node",port:p.port||3000,additional_ports:p.additional_ports||[],install_command:p.install_command??"",prepare_command:p.prepare_command??"",build_command:p.build_command??"",start_command:p.start_command??"",process_mode:p.process_mode||"command"});
-async function loadProjects(){try{const [projects,status]=await Promise.all([api("/projects"),api("/projects/status")]);latestProjects=projects;latestStatus=status;const el=$("projectList");el.replaceChildren();
+async function loadProjects(){try{const [projects,status]=await Promise.all([api("/projects"),api("/projects/status")]);latestProjects=projects;latestStatus=status;const el=$("projectList");el.replaceChildren();updateAppsOverview();
 if(!projects.length){el.className="empty";el.innerHTML='<span class="glyph">◇</span><strong>Nenhuma aplicação ainda</strong>Conecte seu primeiro repositório Git para começar.';return}el.className="";
 for(const p of projects){
 const state=status.find(s=>s.name===p.name)||{status:"offline"};const conf=confDefaults(p);const card=document.createElement("article");card.className="proj";
@@ -946,7 +946,74 @@ function toggleProjectTerminal(){
  projectSocket.onclose=()=>{termOut.textContent+="\n[Conexão encerrada]";projectSocket=null};
  projectSocket.onerror=()=>notify("Não foi possível conectar o terminal da aplicação");
 }
-card.append(termPanel);el.append(card);
+card.append(termPanel);
+card.dataset.search=(p.name+" "+p.repo+" "+(p.branch||"main")).toLowerCase();
+const summaryRow=document.createElement("div");summaryRow.className="proj-compact-top";
+const identity=card.querySelector(".proj-head");summaryRow.append(identity);
+const metrics=document.createElement("div");metrics.className="proj-metrics";
+for(const [label,value,healthy] of [
+ ["Runtime",conf.runtime==="node"?"Node.js / PM2":conf.runtime==="python"?"Python / PM2":"Docker",false],
+ ["Processos",(state.online_count??0)+"/"+(state.process_count??0)+" online",Boolean(state.online_count)],
+ ["Reinícios",String(state.restarts??0),false]
+]){
+ const item=document.createElement("div");item.className="proj-metric-item";
+ const title=document.createElement("small");title.textContent=label;
+ const strong=document.createElement("strong");strong.textContent=value;
+ if(healthy)strong.classList.add("is-running");
+ item.append(title,strong);metrics.append(item)
+}
+summaryRow.append(metrics);
+const ports=document.createElement("div");ports.className="proj-port-mini";
+const portLabel=document.createElement("small");portLabel.textContent="Portas e serviços ("+endpoints.length+")";ports.append(portLabel);
+const displayedPorts=endpoints.slice(0,3);
+if(!displayedPorts.length){
+ const missing=document.createElement("span");missing.className="small muted";missing.textContent="Nenhuma porta detectada";ports.append(missing)
+}
+for(const endpoint of displayedPorts){
+ const chip=document.createElement("span");chip.className="port-chip";
+ chip.classList.toggle("listen",Boolean(endpoint.listening));
+ const primary=Number(endpoint.port)===Number(conf.port);
+ chip.textContent=endpoint.port+(primary?" · principal":endpoint.process?" · "+endpoint.process:"");
+ chip.title=(endpoint.listening?"Em escuta":"Não detectada")+(endpoint.address?" · "+endpoint.address:"")+
+  (endpoint.scope==="local"?" · Somente local":"")+". Escuta não comprova acesso externo.";
+ ports.append(chip)
+}
+if(endpoints.length>displayedPorts.length){
+ const morePorts=document.createElement("span");morePorts.className="port-chip";
+ morePorts.textContent="+"+(endpoints.length-displayedPorts.length);ports.append(morePorts)
+}
+summaryRow.append(ports);
+const resources=document.createElement("div");resources.className="proj-resources";
+const cpu=Number(state.cpu_percent),memory=Number(state.memory_bytes);
+for(const [label,value,percent,kind] of [
+ ["CPU",Number.isFinite(cpu)?cpu.toFixed(1)+"%":"—",Number.isFinite(cpu)?Math.min(100,Math.max(0,cpu)):0,"cpu"],
+ ["RAM",Number.isFinite(memory)?(memory/1048576).toFixed(1)+" MB":"—",Number.isFinite(memory)?Math.min(100,Math.max(0,memory/1048576/512*100)):0,"memory"]
+]){
+ const tile=document.createElement("div");tile.className="proj-resource "+kind;
+ const title=document.createElement("small");title.textContent=label;
+ const val=document.createElement("strong");val.textContent=value;
+ const meter=document.createElement("div");meter.className="resource-bar";
+ const fill=document.createElement("span");fill.style.width=percent+"%";meter.append(fill);
+ tile.append(title,val,meter);
+ if(kind==="memory")tile.title="Barra visual com escala de 512 MB por aplicação; valor em MB acima é o consumo real.";
+ resources.append(tile)
+}
+summaryRow.append(resources);
+const quickActions=document.createElement("div");quickActions.className="proj-compact-actions";
+const autoLabel=autoPanel.querySelector("label");
+const toggle=autoPanel.querySelector("[data-autogit]");
+autoLabel.className="proj-autodeploy-inline";
+autoLabel.replaceChildren(toggle,document.createTextNode("Auto deploy"));
+quickActions.append(autoLabel);
+const envAction=controls.children[2],configAction=controls.children[3];
+secondary.prepend(envAction,configAction);
+quickActions.append(controls);
+summaryRow.append(quickActions);
+card.prepend(summaryRow);
+autoPanel.remove();
+el.append(card);
+updateAppsOverview();
+
 function toggleConfig(){cfg.classList.toggle("hide");if(!cfg.classList.contains("hide"))envPanel.classList.add("hide")}
 function toggleEnv(){envPanel.classList.toggle("hide");if(!envPanel.classList.contains("hide")){cfg.classList.add("hide");displayKeys()}}
 }
