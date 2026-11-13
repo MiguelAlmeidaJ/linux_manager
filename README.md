@@ -664,3 +664,13 @@ Armazenamos no SQLite `node_metrics` amostras por servidor de CPU e percentual d
 Atualize o controlador com `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit` e `sudo systemctl restart linux-manager`. Faça Ctrl+Shift+R no navegador. Baixe novamente a atualização do agente pelo cartão do Windows Server: o ZIP já inclui `windows_actions.py` além de `windows_metrics.py` e scripts atuais. Execute `Update-Agent.ps1 -SkipMySQL` em PowerShell elevado. Não gere um novo instalador, pois **Gerar instalador** revoga o token existente.
 
 A implementação necessita validação real de ações remotas no Windows Server e de reinício do Apache/MySQL em ambiente controlado. As operações não devem ser consideradas prontas para produção até testes funcionais e de permissões terem sido realizados.
+
+## Tela Servidores — novo dashboard Frost
+
+A tela **Servidores** foi redesenhada seguindo a referência visual de cards com KPI no topo e indicadores de consumo por host, preservando as cores branco-gelo e azul da identidade original. O resumo apresenta quantidade de hosts cadastrados incluindo o Linux controlador, quantidade online incluindo controlador e médias de CPU e RAM dos **agentes remotos online que reportaram dados** (o valor local não entra nas médias remotas).
+
+Cada cartão apresenta sistema operacional, nome, estado online/offline, CPU, RAM, IP e horário do último contato e mini-gráfico das amostras recentes de CPU. Para servidores remotos, o histórico vem da API autenticada /api/servers/{id}/metrics e não inventa dados; se ainda houver apenas uma amostra, mostra uma mensagem de aguardando histórico. Para o Linux local, o pequeno histórico é construído apenas com amostras da sessão do navegador; não representa histórico persistente do controlador. A opção **Ver servidor** troca o contexto do header. Ações de instalação e desativação ficam recolhidas em **Mais opções de gerenciamento**.
+
+O console de operações do painel continua disponível e ganhou botões de Copiar, Exportar TXT, Expandir/Recolher e Limpar; o histórico exibido é a saída atual da interface, não um serviço de streaming de todos os logs. A atualização é apenas frontend; não altera o agente, o SQLite, as configurações XAMPP ou os projetos em execução.
+
+Atualize o frontend com `sudo -iu linuxmanager`, `cd /opt/linux-manager`, `git pull --ff-only`, `exit` e `sudo systemctl restart linux-manager`. Pressione Ctrl+Shift+R para recarregar o HTML/CSS/JS.
