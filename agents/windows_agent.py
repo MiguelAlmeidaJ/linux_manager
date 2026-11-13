@@ -53,7 +53,9 @@ def pm2_processes():
                  "status": str(p.get("pm2_env", {}).get("status", ""))[:60],
                  "pid": str(p.get("pid", "")),
                  "restarts": str(p.get("pm2_env", {}).get("restart_time", "")),
-                 "memory": str(p.get("monit", {}).get("memory", ""))}
+                 "memory": str(p.get("monit", {}).get("memory", "")),
+                 "cpu": str(p.get("monit", {}).get("cpu", "")),
+                 "pm_uptime": str(p.get("pm2_env", {}).get("pm_uptime", ""))}
                 for p in data[:100] if isinstance(p, dict)]
     except ValueError:
         return []
