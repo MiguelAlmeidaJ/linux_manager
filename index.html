@@ -369,6 +369,8 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 @media(max-width:1400px){.apps-projects-panel .proj-compact-top{grid-template-columns:minmax(185px,2fr) minmax(140px,1.1fr) minmax(130px,1.1fr) auto}.apps-projects-panel .proj-resources{grid-column:2 / span 2;grid-row:2}.apps-projects-panel .proj-compact-actions{grid-column:4;grid-row:1 / span 2}}
 @media(max-width:1100px){.apps-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.apps-ssh-layout{grid-template-columns:1fr}.apps-projects-panel .proj-compact-top{grid-template-columns:minmax(160px,1fr) minmax(130px,1fr) auto}.apps-projects-panel .proj-head{grid-column:1;grid-row:1}.apps-projects-panel .proj-metrics{grid-column:2;grid-row:1}.apps-projects-panel .proj-port-mini{grid-column:1 / span 2;grid-row:2}.apps-projects-panel .proj-resources{grid-column:2;grid-row:3}.apps-projects-panel .proj-compact-actions{grid-column:3;grid-row:1 / span 3}}
 @media(max-width:740px){.apps-heading{flex-wrap:wrap}.apps-heading-actions{width:100%;justify-content:flex-start}.apps-projects-tools{flex-wrap:wrap}.apps-projects-panel .proj-compact-top{grid-template-columns:minmax(0,1fr)}.apps-projects-panel .proj-head,.apps-projects-panel .proj-metrics,.apps-projects-panel .proj-port-mini,.apps-projects-panel .proj-resources,.apps-projects-panel .proj-compact-actions{grid-column:1;grid-row:auto}.apps-projects-panel .proj-compact-actions{justify-content:space-between}.apps-projects-panel .proj-url{max-width:calc(100vw - 140px)}.apps-projects-panel .proj-resources{flex-wrap:wrap}.apps-projects-panel .proj-metrics{flex-wrap:wrap}.apps-projects-panel .proj-autodeploy-inline{white-space:normal}.apps-summary-card{padding:12px}.apps-summary-icon{width:31px;height:31px}.apps-summary-text strong{font-size:19px}}
+.apps-projects-panel .proj-port-mini .apps-port-detail{border:0;background:transparent;color:#3b70cd;font-size:10px;font-weight:700;padding:3px 5px}
+.apps-projects-panel .proj-endpoints.show-full-ports{padding:12px 0 4px}.apps-projects-panel .proj-endpoints.show-full-ports .proj-endpoints-heading{display:flex;margin-bottom:10px}.apps-projects-panel .proj-endpoints.show-full-ports .proj-endpoints-list{display:flex;gap:7px;flex-wrap:wrap}.apps-projects-panel .proj-endpoints.show-full-ports .proj-port-help{display:block;margin:8px 0 0;font-size:10px}.apps-projects-panel .proj-endpoints.show-full-ports .proj-endpoint{width:auto}
 </style>
 </head>
 <body>
@@ -927,7 +929,7 @@ async function displayKeys(){try{const d=await api(path+"/env");envPanel.querySe
 card.append(envPanel);
 const autoPanel=document.createElement("div");autoPanel.style.marginTop="14px";autoPanel.innerHTML='<label class="small muted" style="display:flex;gap:9px;align-items:center"><input type="checkbox" style="width:auto" data-autogit> Atualização automática pelo Git a cada 3 minutos (faz pull e deploy quando houver alterações)</label>';
 const autoCheckbox=autoPanel.querySelector("[data-autogit]");autoCheckbox.checked=!!p.auto_deploy;
-autoCheckbox.onchange=async()=>{try{await api(path+"/auto-deploy","PUT",{enabled:autoCheckbox.checked});notify(autoCheckbox.checked?"Auto deploy ativado":"Auto deploy desativado")}catch(e){autoCheckbox.checked=!autoCheckbox.checked;failure(e)}};
+autoCheckbox.onchange=async()=>{try{await api(path+"/auto-deploy","PUT",{enabled:autoCheckbox.checked});p.auto_deploy=autoCheckbox.checked;updateAppsOverview();notify(autoCheckbox.checked?"Auto deploy ativado":"Auto deploy desativado")}catch(e){autoCheckbox.checked=!autoCheckbox.checked;failure(e)}};
 card.append(autoPanel);
 const termPanel=document.createElement("div");termPanel.className="hide";termPanel.style.marginTop="16px";
 termPanel.innerHTML='<div class="divider"></div><div class="section-top"><h3>Terminal · '+esc(p.name)+'</h3><button type="button" class="ghost" data-close>Desconectar</button></div><p class="help">Terminal na pasta /srv/linux-manager/projects/'+esc(p.name)+'. Requer TERMINAL_ENABLED=true e HTTPS ou túnel SSH localhost.</p><pre class="project-terminal" style="height:270px;max-height:270px;overflow:auto">Desconectado.</pre><input class="project-terminal-input" placeholder="Digite um comando e pressione Enter" autocomplete="off" spellcheck="false">';
@@ -981,6 +983,17 @@ for(const endpoint of displayedPorts){
 if(endpoints.length>displayedPorts.length){
  const morePorts=document.createElement("span");morePorts.className="port-chip";
  morePorts.textContent="+"+(endpoints.length-displayedPorts.length);ports.append(morePorts)
+}
+if(endpoints.length){
+ const details=document.createElement("button");details.type="button";details.className="apps-port-detail";
+ details.textContent="Detalhes";
+ details.setAttribute("aria-expanded","false");
+ details.onclick=()=>{
+  const open=panel.classList.toggle("show-full-ports");
+  details.setAttribute("aria-expanded",String(open));
+  details.textContent=open?"Ocultar":"Detalhes"
+ };
+ ports.append(details)
 }
 summaryRow.append(ports);
 const resources=document.createElement("div");resources.className="proj-resources";
