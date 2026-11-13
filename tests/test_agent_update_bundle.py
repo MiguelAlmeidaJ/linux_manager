@@ -43,7 +43,7 @@ class WindowsUpdateBundleTests(unittest.TestCase):
     def test_bundle_matches_updater_required_python_files(self):
         from re import findall
         source = (Path(__file__).resolve().parents[1] / "agents" / "Update-Agent.ps1").read_text(encoding="utf-8")
-        required = set(findall(r'"(windows_[a-z_]+\\.py)"', source))
+        required = set(findall(r'"(windows_[a-z_]+\.py)"', source))
         self.assertTrue(required, "No Python dependencies found in updater")
         with patch.object(app, "assert_admin", return_value={"id": 1, "username": "admin"}), \
              patch.object(app, "require_secure_database_admin"), \
