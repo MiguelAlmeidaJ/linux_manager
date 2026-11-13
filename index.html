@@ -1181,23 +1181,117 @@ async function loadServers(){
     $("selectedServerWorkspace").after(section)
    }catch(e){failure(e)}
   }
-  const root=$("serversList");root.replaceChildren();
-  const local=document.createElement("article");local.className="managed-node";
-  const localName=document.createElement("div");localName.className="managed-node-head";
-  localName.innerHTML='<span class="node-icon">'+iconSvg("server")+'</span><div><strong>Servidor principal</strong><div class="small muted" id="serverLocalHost">Linux Manager · Linux</div></div><span class="status">Local</span>';
-  local.append(localName);if(selectedNode==="local")root.append(local);
-  for(const server of scoped){
+  const list=$("serversList");list.replaceChildren();
+  const fleet=$("fleetSummary");fleet.replaceChildren();
+  const known=servers.filter(node=>node.enabled);
+  const online=known.filter(node=>node.online);
+  const average=(field)=>{
+   const values=online.map(n=>n[field]).filter(v=>typeof v==="number"&&Number.isFinite(v));
+   return values.length?(values.reduce((a,b)=>a+b,0)/values.length).toFixed(1)+"%":"—";
+  };
+  for(const [label,value,icon,tone] of [
+   ["Servidores gerenciados",String(known.length+1),"server",""],
+   ["Online",String(online.length+1),"activity","online"],
+   ["CPU média",average("cpu_percent"),"cpu",""],
+   ["Memória média",average("memory_percent"),"database",""]
+  ]){
+   const card=document.createElement("div");card.className="fleet-kpi "+tone;
+   const symbol=document.createElement("span");symbol.className="fleet-kpi-symbol";symbol.innerHTML=iconSvg(icon);
+   const texts=document.createElement("div");texts.className="fleet-kpi-figure";
+   const number=document.createElement("strong");number.textContent=value;
+   const caption=document.createElement("span");caption.textContent=label;
+   texts.append(number,caption);card.append(symbol,texts);fleet.append(card)
+  }
+  const history=await Promise.all(known.map(node=>
+    api("/servers/"+encodeURIComponent(node.id)+"/metrics").catch(()=>[])
+  ));
+  if(generation!==serverRenderGeneration)return;
+  const localData=await Promise.all([
+    api("/stats").catch(()=>null),
+    api("/servers/local").catch(()=>null)
+  ]);
+  if(generation!==serverRenderGeneration)return;
+  const localStats=localData[0],localInfo=localData[1];
+  const createMetric=(icon,label,value)=>{
+   const wrap=document.createElement("div");wrap.className="fleet-node-metric";
+   const badge=document.createElement("span");badge.className="fleet-node-metric-icon";badge.innerHTML=iconSvg(icon);
+   const text=document.createElement("div");text.className="fleet-metric-text";
+   const title=document.createElement("small");title.textContent=label;
+   const val=document.createElement("strong");val.textContent=value;
+   text.append(title,val);wrap.append(badge,text);return wrap;
+  };
+  const formatPct=v=>typeof v==="number"&&Number.isFinite(v)?v.toFixed(1)+"%":"—";
+  const renderSparkline=(samples,tone)=>{
+   const usable=(samples||[]).filter(p=>Number.isFinite(Number(p.cpu_percent)));
+   if(usable.length<2){
+    const fallback=document.createElement("div");fallback.className="fleet-sparkline-empty";
+    fallback.textContent="Gráfico disponível após novas amostras";return fallback
+   }
+   const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+   svg.classList.add("fleet-sparkline");svg.setAttribute("viewBox","0 0 300 50");
+   svg.setAttribute("preserveAspectRatio","none");
+   svg.setAttribute("role","img");svg.setAttribute("aria-label","Tendência recente de uso de CPU");
+   const points=usable.slice(-24).map((p,i,items)=>{
+    const x=2+i*296/Math.max(1,items.length-1);
+    const y=43-Math.max(0,Math.min(100,Number(p.cpu_percent)))*.36;
+    return x.toFixed(1)+","+y.toFixed(1);
+   });
+   const color=tone==="local"?"#376fdf":"#218fc5";
+   const ns="http://www.w3.org/2000/svg";
+   const area=document.createElementNS(ns,"polygon");
+   area.setAttribute("points","2,48 "+points.join(" ")+" 298,48");
+   area.setAttribute("fill",tone==="local"?"#eaf1ff":"#e6f6fb");area.setAttribute("opacity",".75");
+   const line=document.createElementNS(ns,"polyline");
+   line.setAttribute("points",points.join(" "));line.setAttribute("fill","none");line.setAttribute("stroke",color);
+   line.setAttribute("stroke-width","2.4");line.setAttribute("stroke-linejoin","round");
+   line.setAttribute("stroke-linecap","round");line.setAttribute("vector-effect","non-scaling-stroke");
+   svg.append(area,line);return svg
+  };
+  const addServerCard=(node,samples,index)=>{
+   const local=!node;
    const card=document.createElement("article");card.className="managed-node";
-   const heading=document.createElement("div");heading.className="managed-node-head";
-   const symbol=document.createElement("span");symbol.className="node-icon";symbol.innerHTML=iconSvg("server");
-   const info=document.createElement("div");const name=document.createElement("strong");name.textContent=server.name;
-   const subtitle=document.createElement("div");subtitle.className="small muted";subtitle.textContent=(server.os_type==="windows"?"Windows Server":"Linux")+" · "+(server.hostname||"Aguardando agente");
-   info.append(name,subtitle);
-   const status=document.createElement("span");status.className="status "+(server.online?"":"off");status.textContent=!server.enabled?"Desativado":server.online?"Online":"Offline";
-   heading.append(symbol,info,status);card.append(heading);
-   const details=document.createElement("div");details.className="node-details";
-   details.textContent="IP informado: "+(server.addresses?.join(", ")||"Aguardando agente")+" · Último contato: "+(server.last_seen?new Date(server.last_seen*1000).toLocaleString("pt-BR"):"Nunca")+" · CPU: "+(server.cpu_percent==null?"—":server.cpu_percent+"%")+" · Memória: "+(server.memory_percent==null?"—":server.memory_percent+"%");
-   card.append(details);
+   if(String(selectedNode)===(local?"local":String(node.id)))card.classList.add("is-selected");
+   const header=document.createElement("div");header.className="managed-node-head";
+   const symbol=document.createElement("span");symbol.className="node-icon";
+   symbol.innerHTML=iconSvg(local?"server":"server");
+   const info=document.createElement("div");
+   const title=document.createElement("strong");title.textContent=local?"Servidor principal":node.name;
+   const desc=document.createElement("div");desc.className="small muted";
+   desc.textContent=local?(localInfo?.hostname||"Linux Manager")+" · Controlador":(node.os_type==="windows"?"Windows Server":"Linux")+" · "+(node.hostname||"Aguardando agente");
+   info.append(title,desc);
+   const state=document.createElement("span");state.className="status "+(!local&&!node.online?"off":"");
+   state.textContent=local?"Local":!node.enabled?"Inativo":node.online?"Online":"Offline";
+   header.append(symbol,info,state);card.append(header);
+   const metrics=document.createElement("div");metrics.className="fleet-node-metrics";
+   const cpu=local?(localStats?.cpu_instant??localStats?.cpu):node.cpu_percent;
+   const memory=local?localStats?.memory:node.memory_percent;
+   metrics.append(createMetric("activity","CPU",formatPct(cpu)),
+                  createMetric("database","Memória",formatPct(memory)));
+   card.append(metrics);
+   if(local&&localStats){
+    if(!window.__fleetLocalSamples)window.__fleetLocalSamples=[];
+    window.__fleetLocalSamples.push({cpu_percent:Number(cpu),recorded_at:Date.now()/1000});
+    window.__fleetLocalSamples=window.__fleetLocalSamples.slice(-24);
+   }
+   card.append(renderSparkline(local?window.__fleetLocalSamples:samples,local?"local":"remote"));
+   const foot=document.createElement("div");foot.className="fleet-card-footer";
+   const ip=document.createElement("span");ip.className="fleet-node-ip";
+   ip.textContent=local?(localInfo?.addresses?.[0]||"Servidor Linux"):
+     (node.addresses?.[0]||"IP não informado")+" · "+(node.last_seen?
+     "Visto "+new Date(node.last_seen*1000).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"Sem contato");
+   const button=document.createElement("button");button.className="ghost";
+   button.textContent=local?"Abrir painel":"Ver servidor";
+   button.onclick=async()=>{
+    selectedNode=local?"local":String(node.id);
+    $("selectedServer").value=selectedNode;updateServerContext();
+    if(local)switchTab("dashboard");else {switchTab("servers");await loadServers()}
+   };
+   foot.append(ip,button);card.append(foot);
+   if(!local){
+    const menu=document.createElement("details");menu.className="fleet-card-menu";
+    const summary=document.createElement("summary");summary.textContent="Mais opções de gerenciamento";
+    menu.append(summary);
+    const server=node;
    const actions=document.createElement("div");actions.className="actions";
    const view=document.createElement("button");view.type="button";view.className="ghost";view.textContent="Ver serviços";
    const content=document.createElement("div");content.className="node-processes hide";
@@ -1258,8 +1352,13 @@ async function loadServers(){
      try{await api("/servers/"+server.id+"/disable","POST",{});notify("Servidor desativado");await loadServers()}catch(e){failure(e)}};
     actions.append(disable)
    }
-   card.append(actions,content);root.append(card)
-  }
+
+    menu.append(actions,content);card.append(menu);
+   }
+   list.append(card)
+  };
+  addServerCard(null,[],0);
+  known.forEach((node,i)=>addServerCard(node,history[i]||[],i+1));
  }catch(e){failure(e)}
 }
 $("refreshServers").onclick=loadServers;
