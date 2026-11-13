@@ -429,6 +429,73 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 .pm2-process-card-meta small{display:block;font-size:10px;color:#8a9db4}.pm2-process-card-meta strong{font-size:12px;color:#344f70}
 @media(max-width:1270px){.pm2-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pm2-filter-bar{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.pm2-heading{flex-wrap:wrap}.pm2-heading-actions{width:100%;justify-content:flex-start}.pm2-workspace{padding:14px}.pm2-kpi{padding:14px 12px}.pm2-kpi-icon{width:34px;height:34px}.pm2-kpi-icon svg{width:16px;height:16px}.pm2-kpi-copy strong{font-size:20px}.pm2-filter-bar{grid-template-columns:1fr}.pm2-cards{grid-template-columns:1fr}.pm2-workspace-head{align-items:flex-start}.pm2-workspace-head p{display:none}}
+
+/* Professional navigation — keep existing server/account functionality */
+.topbar{height:66px;padding:0 32px;background:#fff;border-bottom:1px solid #e4eaf2;box-shadow:none}
+.topbar-left{display:block}
+.topbar-location{gap:11px;color:#8998ad;font-size:12px;font-weight:500}
+.topbar-location strong{font-size:12px;font-weight:650;color:#223a59}
+.topbar-chevron{width:auto;height:auto;font-size:14px;color:#bcc6d5}
+.topright{gap:14px}
+.server-switch{background:#fff;border:1px solid #dce5ef;border-radius:8px;padding:0 9px;gap:8px;min-height:36px}
+.server-switch:focus-within{border-color:#8db3ef;box-shadow:0 0 0 3px #3974dd14}
+.server-status-dot{width:6px;height:6px;box-shadow:none}
+.server-switch-label{font-size:10px;color:#8290a3;white-space:nowrap}
+.server-switch select{max-width:260px;padding:7px 2px!important;font-size:11.5px!important;color:#233b59!important;font-weight:600;outline:none}
+.account-trigger{border-radius:8px;padding:4px 5px;gap:9px}
+.account-avatar{height:30px;width:30px;border-radius:7px;background:#eff3fa;border-color:#e6ecf4;color:#47658f;font-size:10px}
+.account-copy{gap:2px;min-width:65px}.account-copy strong{font-size:11.5px}.account-copy small{font-size:9.5px}
+.account-dropdown{border-radius:10px;box-shadow:0 12px 34px #2339521c}
+@media(max-width:730px){.topbar{padding:0 16px}.server-switch-label{display:none}.server-switch select{max-width:136px!important}.account-copy{display:none}.topright{gap:8px}}
+@media(max-width:440px){.topbar-root,.topbar-chevron{display:none}.topbar-location strong{max-width:110px}.server-switch select{max-width:114px!important}}
+
+/* Remote PHP projects — compact, accurate inventory */
+.php-heading{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.php-page-intro{display:flex;align-items:center;gap:12px;min-width:0}
+.php-page-symbol{width:37px;height:37px;border-radius:9px;background:#edf3ff;color:#406fcd;display:grid;place-items:center;flex:none}
+.php-page-symbol svg{width:19px;height:19px}
+.php-page-intro h1{margin-bottom:4px}
+.php-page-intro p{font-size:11px;margin:0;color:#8293aa}
+.php-heading-actions{display:flex;align-items:center;gap:8px}
+.php-heading-actions button{font-size:11px;padding:9px 12px;border-radius:8px}
+.php-heading-actions .ghost{display:flex;align-items:center;gap:6px}
+.php-heading-actions .ghost svg{width:14px;height:14px}
+.php-context-line{font-size:11px;color:#8293a9;margin:-10px 0 17px}
+.php-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.php-metric{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #e1e9f3;border-radius:12px;padding:15px;min-width:0;box-shadow:0 4px 15px #23456c08}
+.php-metric-icon{width:38px;height:38px;border-radius:10px;background:#eef4ff;color:#4679d5;flex:none;display:grid;place-items:center}
+.php-metric-icon svg{width:18px;height:18px}
+.php-metric-copy{min-width:0}
+.php-metric-copy small{display:block;font-size:10px;color:#8494ad;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.php-metric-copy strong{display:block;font-size:20px;line-height:1.25;color:#243c5e;font-weight:730;margin:2px 0;overflow-wrap:anywhere}
+.php-metric-copy span{display:block;font-size:9.5px;color:#91a0b4;line-height:1.45}
+.php-inventory{padding:21px;border-radius:13px}
+.php-inventory-heading{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:16px}
+.php-inventory-heading h2{font-size:15px;color:#263b57;margin:0 0 4px}
+.php-inventory-heading p{font-size:11px;margin:0}
+.php-total-badge{border-radius:20px;padding:5px 10px;background:#edf4ff;color:#4671be;font-weight:700;font-size:10px;white-space:nowrap}
+.php-filters{display:grid;grid-template-columns:minmax(220px,2fr) minmax(140px,1fr) minmax(170px,1fr);gap:10px;margin-bottom:14px}
+.php-search{position:relative;min-width:0}.php-search>span:not(.sr-only){position:absolute;left:11px;top:50%;transform:translateY(-50%);color:#8395ad;display:grid;place-items:center;pointer-events:none}
+.php-search svg{height:15px;width:15px}
+.php-search input{padding:9px 11px 9px 35px!important;height:37px;font-size:11px;border-radius:8px}
+.php-select select{height:37px;padding:8px 10px!important;border-radius:8px;font-size:11px;color:#476079!important}
+.php-inventory-table{width:100%;overflow-x:auto}
+.php-inventory-table table{width:100%;min-width:740px;border-collapse:collapse}
+.php-inventory-table th{background:#f5f7fb;font-size:10px;color:#7e90aa;font-weight:700;text-align:left;padding:12px 13px;white-space:nowrap}
+.php-inventory-table td{border-bottom:1px solid #eaf0f6;padding:12px 13px;color:#4d607d;font-size:11px;vertical-align:middle}
+.php-inventory-table tr:last-child td{border-bottom:0}
+.php-project-id{display:flex;gap:9px;align-items:center;min-width:140px}
+.php-project-symbol{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;background:#edf3ff;color:#5276ce;flex:none}.php-project-symbol svg{width:14px;height:14px}
+.php-project-id strong{display:block;font-size:11px;color:#213a5b}.php-project-id small{display:block;font-size:9px;color:#92a1b5;margin-top:3px}
+.php-technology-tag,.php-source-tag{display:inline-block;padding:5px 9px;border-radius:6px;background:#eff4ff;color:#4b72b6;font-size:10px;font-weight:650;white-space:nowrap}
+.php-source-tag{background:#f4f6fa;color:#6b7e96}
+.php-path{font-size:10px;color:#647c9b;overflow-wrap:anywhere;white-space:normal;background:transparent}
+.php-row-actions{display:flex;gap:6px;white-space:nowrap}.php-row-actions button{font-size:10px;padding:7px 9px;border-radius:7px}
+.php-project-details{background:#f7faff;padding:13px;border:1px solid #e5edf8;border-radius:8px;color:#7185a0}.php-project-details strong{font-size:11px;color:#395a80}.php-project-details p{font-size:10px;margin:6px 0 0;line-height:1.6}
+.php-inventory-note{margin:15px 0 0;padding:11px 13px;border-radius:8px;background:#f5f8fc;color:#7386a3;font-size:10.5px}
+.php-empty{padding:30px!important;text-align:center;color:#8b9bb0!important}
+@media(max-width:1050px){.php-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.php-filters{grid-template-columns:1fr 1fr}.php-search{grid-column:1/-1}}
+@media(max-width:620px){.php-heading-actions{width:100%;justify-content:flex-start}.php-metrics{grid-template-columns:1fr 1fr;gap:8px}.php-metric{padding:12px;gap:8px}.php-metric-icon{width:30px;height:30px}.php-metric-copy strong{font-size:16px}.php-inventory{padding:14px}.php-filters{grid-template-columns:1fr}.php-search{grid-column:1}.php-inventory-heading{align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -459,12 +526,10 @@ input::placeholder,textarea::placeholder{color:#96a5ba}
 <div class="main">
 <header class="topbar">
   <div class="topbar-left">
-    <div class="topbar-location"><span class="topbar-section" data-icon="server" aria-hidden="true"></span><span class="topbar-root">Servidor</span><span data-icon="chevron-right" class="topbar-chevron" aria-hidden="true"></span><strong id="crumb">Visão geral</strong></div>
-    <div class="topbar-context">Painel de gerenciamento</div>
+    <nav class="topbar-location" aria-label="Localização atual"><span class="topbar-root">Workspace</span><span class="topbar-chevron" aria-hidden="true">/</span><strong id="crumb">Visão geral</strong></nav>
   </div>
   <div class="topright">
-    <div class="server-switch"><span class="server-status-dot"></span><select id="selectedServer" aria-label="Servidor ativo"><option value="local">Servidor principal</option></select></div>
-    <div class="header-separator" aria-hidden="true"></div>
+    <div class="server-switch"><span class="server-status-dot" aria-hidden="true"></span><label for="selectedServer" class="server-switch-label">Servidor</label><select id="selectedServer" aria-label="Servidor ativo"><option value="local">Servidor principal</option></select></div>
     <details class="account-menu" id="accountMenu">
       <summary class="account-trigger" aria-label="Abrir menu da conta">
         <span class="account-avatar" id="accountAvatar">LM</span>
@@ -505,7 +570,24 @@ GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'127.0.0.1';</pre><p>Depois, no Powe
 <div id="serverTokenPanel" class="panel hide" style="margin-top:18px"><div class="section-top"><h2>Credencial do novo servidor</h2><button class="ghost" id="closeTokenPanel">Fechar</button></div><p class="help">Copie agora. O token é mostrado apenas nesta etapa e deve ficar protegido no servidor remoto. Execute o agente usando HTTPS.</p><label class="field">ID do servidor<input id="newNodeId" readonly></label><label class="field">Token privado<input id="newNodeToken" type="password" readonly></label><div class="actions"><button type="button" id="downloadWindowsInstaller">Baixar instalador Windows (.zip)</button><button type="button" class="ghost" id="copyServerToken">Copiar token</button><button type="button" class="ghost" id="downloadAgentGuide">Ver instruções</button></div><pre id="serverAgentGuide" class="hide" style="white-space:pre-wrap"></pre></div>
 <div class="panel remote-command-panel hide" id="remoteActionPanel"><div class="section-top"><div><h2>Operações remotas</h2><p class="small muted">Ações registradas na auditoria. Os comandos só são executados após o próximo contato do agente.</p></div><button type="button" class="ghost" id="refreshRemoteActions">↻ Atualizar</button></div><div id="remoteActionHistory" class="remote-action-history"></div></div></section>
 <dialog id="addServerDialog" class="user-dialog"><form id="addServerForm" class="formgrid"><div class="wide"><div class="section-top"><h2>Adicionar servidor</h2><button type="button" class="ghost" id="cancelAddServer">Fechar</button></div><p class="help">Cadastre o host e configure o agente no Windows Server. Não é necessário expor WinRM ou RDP à internet.</p></div><label class="field wide">Nome do servidor<input name="name" required minlength="2" maxlength="80" placeholder="windows-producao-01"></label><label class="field wide">Sistema operacional<select name="os_type"><option value="windows">Windows Server</option><option value="linux">Linux (agente futuro)</option></select></label><div class="wide actions" style="justify-content:flex-end"><button type="submit">Criar servidor</button></div></form></dialog>
-<section id="remotephp" class="hide"><div class="heading"><div><h1>Projetos PHP</h1><p id="phpServerLabel">Projetos PHP do Windows selecionado.</p></div><button class="ghost" data-remote-refresh="remotephp">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Aplicações e VirtualHosts</h2><span class="badge" id="phpRemoteCount">—</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Projeto</th><th>Tecnologia</th><th>Diretório</th><th>Origem</th></tr></thead><tbody id="phpRemoteBody"></tbody></table></div></div></section>
+<section id="remotephp" class="hide">
+<div class="heading php-heading">
+  <div class="php-page-intro"><span class="php-page-symbol" data-icon="code" aria-hidden="true"></span><div><h1>Projetos PHP</h1><p>Inventário de aplicações, diretórios e VirtualHosts do servidor Windows.</p></div></div>
+  <div class="php-heading-actions"><button type="button" class="ghost" data-remote-refresh="remotephp"><span data-icon="refresh-cw" aria-hidden="true"></span> Atualizar</button><button type="button" id="phpOpenXampp">Serviços XAMPP</button></div>
+</div>
+<p id="phpServerLabel" class="php-context-line"></p>
+<div class="php-metrics" id="phpMetrics" aria-label="Resumo dos projetos PHP"></div>
+<div class="panel php-inventory">
+  <div class="php-inventory-heading"><div><h2>Aplicações e VirtualHosts</h2><p class="small muted">Projetos detectados no XAMPP e documentos raiz do Apache.</p></div><span class="php-total-badge" id="phpRemoteCount">—</span></div>
+  <div class="php-filters">
+    <label class="php-search"><span data-icon="search" aria-hidden="true"></span><input id="phpSearch" type="search" placeholder="Buscar por nome, diretório ou origem..." autocomplete="off" aria-label="Pesquisar projetos PHP"></label>
+    <label class="php-select"><span class="sr-only">Filtrar tecnologia</span><select id="phpTechnology"><option value="">Tecnologia: Todas</option></select></label>
+    <label class="php-select"><span class="sr-only">Filtrar origem</span><select id="phpOrigin"><option value="">Origem: Todas</option><option value="htdocs">Diretório htdocs</option><option value="VirtualHost">VirtualHost Apache</option></select></label>
+  </div>
+  <div class="php-inventory-table"><table class="table"><thead><tr><th>Projeto</th><th>Tecnologia</th><th>Diretório</th><th>Origem</th><th>Ações</th></tr></thead><tbody id="phpRemoteBody"></tbody></table></div>
+  <p class="php-inventory-note" id="phpInventoryNote">Os diretórios detectados não comprovam que o projeto esteja publicado ou acessível. O inventário é somente leitura.</p>
+</div>
+</section>
 <section id="remotedb" class="hide"><div class="heading"><div><h1>Bancos MySQL / MariaDB</h1><p id="dbServerLabel">Bancos reportados pelo Windows selecionado.</p></div><button class="ghost" data-remote-refresh="remotedb">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Bancos encontrados</h2><span class="badge" id="dbRemoteCount">—</span></div><p id="dbRemoteStatus" class="remote-db-state"></p><div class="table-wrap"><table class="table"><thead><tr><th>Banco de dados</th><th>Servidor</th></tr></thead><tbody id="dbRemoteBody"></tbody></table></div><p class="small muted">Inventário somente leitura. Consultas e alterações de bancos não são executadas.</p></div></section>
 <section id="remotexampp" class="hide"><div class="heading"><div><h1>Serviços XAMPP / Windows</h1><p id="xamppServerLabel">Apache, MySQL/MariaDB, PHP e serviços registrados.</p></div><button class="ghost" data-remote-refresh="remotexampp">↻ Atualizar</button></div><div class="panel"><div class="section-top"><h2>Serviços monitorados</h2><span class="badge" id="xamppRemoteCount">—</span></div><div id="xamppActions" class="actions" style="margin-bottom:15px"></div><div class="table-wrap"><table class="table"><thead><tr><th>Serviço</th><th>Tipo</th><th>Status</th><th>Ação</th></tr></thead><tbody id="xamppRemoteBody"></tbody></table></div></div></section>
 <section id="projects" class="hide">
@@ -1301,14 +1383,86 @@ $("refreshRemoteActions").onclick=loadRemoteActionHistory;
 document.querySelectorAll("[data-copy-guide]").forEach(button=>button.onclick=()=>{
  navigator.clipboard.writeText(button.dataset.copyGuide).then(()=>notify("Comando copiado")).catch(()=>notify("Não foi possível copiar"))
 });
+let phpInventoryData=[],phpInventoryServer="";
+function phpMetric(label,value,icon,description){
+ const card=document.createElement("div");card.className="php-metric";
+ const symbol=document.createElement("span");symbol.className="php-metric-icon";symbol.innerHTML=iconSvg(icon);
+ const copy=document.createElement("div");copy.className="php-metric-copy";
+ const name=document.createElement("small");name.textContent=label;
+ const number=document.createElement("strong");number.textContent=String(value);
+ const note=document.createElement("span");note.textContent=description;
+ copy.append(name,number,note);card.append(symbol,copy);return card
+}
+function updatePhpOverview(){
+ const total=phpInventoryData.length;
+ const vhosts=phpInventoryData.filter(p=>p.source==="VirtualHost").length;
+ const directories=phpInventoryData.filter(p=>p.source==="htdocs").length;
+ const metricRoot=$("phpMetrics");metricRoot.replaceChildren(
+  phpMetric("Projetos encontrados",total,"code","Itens no inventário"),
+  phpMetric("VirtualHosts detectados",vhosts,"network","Entradas com DocumentRoot próprio"),
+  phpMetric("Diretórios htdocs",directories,"folder","Pastas com aplicação PHP"),
+  phpMetric("Servidor",phpInventoryServer||"—","server","Inventário remoto")
+ );
+ const select=$("phpTechnology"),previous=select.value;
+ select.replaceChildren(new Option("Tecnologia: Todas",""));
+ for(const type of [...new Set(phpInventoryData.map(p=>String(p.type||"PHP")))].sort())
+   select.add(new Option(type,type));
+ select.value=[...select.options].some(option=>option.value===previous)?previous:""
+}
+function renderPhpInventory(){
+ const body=$("phpRemoteBody");body.replaceChildren();
+ const query=$("phpSearch").value.toLocaleLowerCase("pt-BR").trim();
+ const technology=$("phpTechnology").value,origin=$("phpOrigin").value;
+ const items=phpInventoryData.filter(p=>
+  (!technology||p.type===technology)&&(!origin||p.source===origin)&&
+  (!query||[p.name,p.type,p.path,p.source].some(x=>String(x||"").toLocaleLowerCase("pt-BR").includes(query)))
+ );
+ $("phpRemoteCount").textContent=items.length+" / "+phpInventoryData.length+" projetos";
+ for(const project of items){
+  const tr=document.createElement("tr");
+  const name=document.createElement("td"),identity=document.createElement("div");identity.className="php-project-id";
+  const icon=document.createElement("span");icon.className="php-project-symbol";icon.innerHTML=iconSvg("code");
+  const detail=document.createElement("div");const strong=document.createElement("strong");strong.textContent=project.name||"Sem nome";
+  const subtitle=document.createElement("small");subtitle.textContent="Projeto identificado";detail.append(strong,subtitle);identity.append(icon,detail);name.append(identity);
+  const tech=document.createElement("td"),tag=document.createElement("span");tag.className="php-technology-tag";tag.textContent=project.type||"PHP";tech.append(tag);
+  const path=document.createElement("td"),code=document.createElement("code");code.className="php-path";code.textContent=project.path||"—";code.title=project.path||"";path.append(code);
+  const source=document.createElement("td"),originTag=document.createElement("span");originTag.className="php-source-tag";originTag.textContent=project.source==="VirtualHost"?"Apache VirtualHost":"htdocs";source.append(originTag);
+  const actions=document.createElement("td"),group=document.createElement("div");group.className="php-row-actions";
+  const copy=document.createElement("button");copy.type="button";copy.className="ghost";copy.textContent="Copiar caminho";
+  copy.onclick=()=>navigator.clipboard.writeText(String(project.path||"")).then(()=>notify("Caminho copiado")).catch(()=>notify("Não foi possível copiar"));
+  const more=document.createElement("button");more.type="button";more.className="ghost";more.textContent="Detalhes";more.setAttribute("aria-expanded","false");
+  const extra=document.createElement("tr");extra.className="php-details-row hide";
+  const extraCell=document.createElement("td");extraCell.colSpan=5;
+  const extraContent=document.createElement("div");extraContent.className="php-project-details";
+  const title=document.createElement("strong");title.textContent="Informações do inventário";
+  const info=document.createElement("p");
+  info.textContent="Diretório: "+String(project.path||"—")+" · Origem: "+String(project.source||"desconhecida")+". A existência da pasta não comprova disponibilidade do site.";
+  extraContent.append(title,info);extraCell.append(extraContent);extra.append(extraCell);
+  more.onclick=()=>{const expanded=extra.classList.toggle("hide")===false;more.textContent=expanded?"Fechar":"Detalhes";more.setAttribute("aria-expanded",String(expanded))};
+  group.append(copy,more);actions.append(group);
+  tr.append(name,tech,path,source,actions);body.append(tr,extra)
+ }
+ if(!items.length){
+  const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=5;
+  td.className="php-empty";td.textContent=phpInventoryData.length?"Nenhum projeto corresponde aos filtros selecionados.":"Nenhum projeto PHP encontrado neste servidor.";
+  tr.append(td);body.append(tr)
+ }
+ $("phpInventoryNote").textContent="Inventário somente leitura. "+phpInventoryData.length+" projeto(s) identificados; o agente não informa se estão acessíveis por HTTP."
+}
+$("phpSearch").oninput=renderPhpInventory;
+$("phpTechnology").onchange=renderPhpInventory;
+$("phpOrigin").onchange=renderPhpInventory;
+$("phpOpenXampp").onclick=()=>switchTab("remotexampp");
 async function loadRemotePage(page){
  if(selectedNode==="local")return;
  try{
   const detail=await api("/servers/"+encodeURIComponent(selectedNode));
   if(page==="remotephp"){
-   $("phpServerLabel").textContent=detail.name+" · "+(detail.addresses||[]).join(", ");
-   $("phpRemoteCount").textContent=(detail.php_projects||[]).length+" projetos";
-   fillRemoteTable("phpRemoteBody",detail.php_projects||[],[p=>p.name,p=>p.type,p=>p.path,p=>p.source],"Nenhum projeto PHP encontrado")
+   phpInventoryData=Array.isArray(detail.php_projects)?detail.php_projects:[];
+   phpInventoryServer=detail.name;
+   $("phpServerLabel").textContent="Servidor selecionado: "+detail.name+" · "+(detail.addresses?.[0]||"IP não informado");
+   updatePhpOverview();
+   renderPhpInventory();
   }else if(page==="remotedb"){
    const names=detail.mysql?.databases||[];
    $("dbServerLabel").textContent=detail.name+" · "+(detail.addresses||[]).join(", ");
