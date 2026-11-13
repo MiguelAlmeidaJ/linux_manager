@@ -1609,80 +1609,225 @@ $("addServerForm").onsubmit=async event=>{
   await updateServerSelector();await loadServers();
  }catch(e){failure(e)}
 };
-let pm2Entries=[],pm2Remote=false;
+let pm2Entries=[],pm2Remote=false,pm2SortDesc=false,pm2AppNames=[],pm2Samples=new Map(),pm2Filtered=[];
+function pm2Application(p){
+ const cwd=String(p.pm2_env?.pm_cwd||"").replace(/\\/g,"/");
+ const roots=pm2AppNames.filter(name=>cwd==="/srv/linux-manager/projects/"+name||cwd.startsWith("/srv/linux-manager/projects/"+name+"/"));
+ if(roots.length)return roots.sort((a,b)=>b.length-a.length)[0];
+ const raw=String(p.name||"");
+ if(raw.startsWith("lm-")&&pm2AppNames.includes(raw.slice(3)))return raw.slice(3);
+ return "";
+}
+function pm2MiniTrend(points){
+ const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+ svg.setAttribute("viewBox","0 0 100 28");svg.setAttribute("role","img");
+ svg.setAttribute("aria-label","Tendência de CPU das últimas "+points.length+" amostras desta sessão");
+ svg.classList.add("pm2-sparkline");
+ if(points.length<2){svg.setAttribute("aria-label","Aguardando nova amostra de CPU");return svg}
+ const max=Math.max(5,...points.map(v=>Number(v)||0));
+ const coords=points.map((v,i)=>[(i*98/Math.max(1,points.length-1)+1).toFixed(1),(23-(Number(v)||0)/max*18).toFixed(1)]);
+ const ns="http://www.w3.org/2000/svg";
+ const polygon=document.createElementNS(ns,"polygon");
+ polygon.setAttribute("points","1,27 "+coords.map(pair=>pair.join(",")).join(" ")+" 99,27");
+ polygon.setAttribute("fill","#d8f6e7");
+ const line=document.createElementNS(ns,"polyline");
+ line.setAttribute("points",coords.map(pair=>pair.join(",")).join(" "));
+ line.setAttribute("fill","none");line.setAttribute("stroke","#18b478");
+ line.setAttribute("stroke-width","2");line.setAttribute("stroke-linejoin","round");
+ line.setAttribute("stroke-linecap","round");
+ svg.append(polygon,line);return svg
+}
+function pm2FormatUptime(p){
+ const value=Number(p.pm2_env?.pm_uptime);
+ if(!Number.isFinite(value)||value<=0)return "—";
+ const ms=Date.now()-value;if(ms<0)return "—";
+ const days=Math.floor(ms/86400000),hours=Math.floor((ms%86400000)/3600000);
+ return days?days+"d "+hours+"h":hours?hours+"h "+Math.floor((ms%3600000)/60000)+"min":Math.floor(ms/60000)+"min"
+}
+function pm2UpdateAppChoices(){
+ const select=$("pm2AppFilter"),selected=select.value;
+ const names=[...new Set(pm2Entries.map(pm2Application).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+ select.replaceChildren(new Option("Aplicação: Todas",""));
+ for(const name of names)select.add(new Option(name,name));
+ select.add(new Option("Sem vínculo identificado","__none__"));
+ select.value=[...select.options].some(option=>option.value===selected)?selected:"";
+}
+function pm2DrawSummary(){
+ const root=$("pm2Overview");root.replaceChildren();
+ const total=pm2Entries.length,online=pm2Entries.filter(p=>p.pm2_env?.status==="online").length;
+ const restarts=pm2Entries.reduce((acc,p)=>acc+(Number(p.pm2_env?.restart_time)||0),0);
+ const memory=pm2Entries.reduce((acc,p)=>acc+(Number(p.monit?.memory)||0),0);
+ const data=[
+  {name:"Processos",value:total,icon:"terminal",tone:"blue",note:total&&online===total?"100% online":online+" online"},
+  {name:"Online",value:online,icon:"layers-3",tone:"green",note:total?Math.round(online/total*100)+"% ativos":"Sem processos"},
+  {name:"Reinícios",value:restarts,icon:"refresh-cw",tone:"violet",note:"Total acumulado do PM2"},
+  {name:"Memória total",value:(memory/1073741824).toFixed(2)+" GB",icon:"memory-stick",tone:"sky",note:"RAM dos processos"}
+ ];
+ for(const item of data){
+  const card=document.createElement("div");card.className="pm2-kpi "+item.tone;
+  const badge=document.createElement("span");badge.className="pm2-kpi-icon";badge.innerHTML=iconSvg(item.icon);
+  const info=document.createElement("div");info.className="pm2-kpi-copy";
+  const title=document.createElement("small");title.textContent=item.name;
+  const value=document.createElement("strong");value.textContent=String(item.value);
+  const foot=document.createElement("span");foot.className="pm2-kpi-foot";foot.textContent=item.note;
+  info.append(title,value,foot);card.append(badge,info);root.append(card)
+ }
+}
+async function pm2Action(p,action){
+ const path="/pm2/processes/"+encodeURIComponent(p.name)+"/"+action;
+ if(!["logs"].includes(action)&&!confirm("Confirma "+action+" do processo "+p.name+" no servidor selecionado?"))return false;
+ try{
+  if(pm2Remote){
+   const queued=await runRemoteAction(action,p.name);
+   return Boolean(queued)
+  }
+  const response=await api(path,"POST",{});
+  if(action==="logs")resultMessage(response.output||"Sem logs disponíveis");
+  else{notify("Ação PM2 executada: "+p.name);await loadPM2()}
+  return true
+ }catch(e){failure(e);return false}
+}
+function pm2RowActions(p){
+ const wrap=document.createElement("div");wrap.className="pm2-action-buttons";
+ const allowed=!pm2Remote||currentRole==="admin";
+ if(!allowed){wrap.textContent="Somente leitura";return wrap}
+ const actions=[["play","start","Iniciar"],["square","stop","Parar"],["refresh-cw","restart","Reiniciar"],["file-text","logs","Ver logs"]];
+ for(const [glyph,action,label] of actions){
+  const button=document.createElement("button");button.type="button";
+  button.className="pm2-action-btn "+(action==="restart"?"featured":"");
+  button.innerHTML=iconSvg(glyph);button.title=label+" · "+p.name;
+  button.setAttribute("aria-label",label+" "+p.name);
+  button.disabled=(action==="start"&&p.pm2_env?.status==="online")||(action==="stop"&&p.pm2_env?.status!=="online");
+  button.onclick=async()=>{button.disabled=true;try{await pm2Action(p,action)}finally{button.disabled=false}};
+  wrap.append(button)
+ }
+ return wrap
+}
 function filterPM2(){
- const query=$("pm2Search").value.trim().toLowerCase(),status=$("pm2StatusFilter").value;
- const matches=pm2Entries.filter(p=>{
+ const query=$("pm2Search").value.trim().toLowerCase(),status=$("pm2StatusFilter").value,app=$("pm2AppFilter").value;
+ let matches=pm2Entries.filter(p=>{
   const state=String(p.pm2_env?.status||"").toLowerCase();
   const stateMatches=!status||(status==="stopped"?["stopped","stopping","offline"].includes(state):
    status==="errored"?["errored","error","erroring"].includes(state):
    status==="other"?!["online","stopped","stopping","offline","errored","error","erroring"].includes(state):state==="online");
-  const searchable=[p.name,p.pid,...(p.ports||[]).map(e=>e.port)].join(" ").toLowerCase();
-  return stateMatches&&(!query||searchable.includes(query))
+  const searchable=[p.name,p.pid,pm2Application(p),...(p.ports||[]).map(e=>e.port)].join(" ").toLowerCase();
+  return stateMatches&&(!query||searchable.includes(query))&&(!app||(app==="__none__"?!pm2Application(p):pm2Application(p)===app))
  });
+ matches=matches.sort((a,b)=>String(a.name).localeCompare(String(b.name),"pt-BR")*(pm2SortDesc?-1:1));
+ pm2Filtered=matches;
  $("pm2Count").textContent=matches.length+" / "+pm2Entries.length+" processos";
  const root=$("pm2Table");root.replaceChildren();
- if(!matches.length){const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=8;td.textContent="Nenhum processo corresponde aos filtros";tr.append(td);root.append(tr);return}
- for(const p of matches){
-  const tr=document.createElement("tr");
-  const fields=[p.name,p.pm2_env?.status||"—",p.pid||"—",null,
-   p.monit?.cpu==null?"—":p.monit.cpu+"%",
-   ((p.monit?.memory||0)/1048576).toFixed(1)+" MB",p.pm2_env?.restart_time||0];
-  fields.forEach((value,i)=>{
-   const td=document.createElement("td");
-   if(i===1){const badge=document.createElement("span");badge.className="status "+(value==="online"?"":"off");badge.textContent=String(value);td.append(badge)}
-   else if(i===3){
-    td.className="pm2-port-cell";
-    const ports=Array.isArray(p.ports)?p.ports:[];
-    if(!ports.length){td.textContent="—";td.title="Portas não identificadas; não significa que o processo não use rede"}
-    for(const endpoint of ports){
-     const chip=document.createElement("span");chip.className="pm2-port-chip";
-     const address=String(endpoint.address||"");
-     chip.textContent=String(endpoint.port);
-     chip.title=address+(["127.0.0.1","::1"].includes(address)?" · acesso local":" · interface de rede");
-     td.append(chip)
-    }
-   }else{td.textContent=String(value);if(i===0)td.style.fontWeight="650"}
-   tr.append(td)
-  });
-  const td=document.createElement("td"),actions=document.createElement("div");actions.className="pm2-acts";
-  for(const [label,action] of pm2Remote?(currentRole==="admin"?[["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Recarregar","reload"],["Logs","logs"]]:[]):[["Iniciar","start"],["Parar","stop"],["Reiniciar","restart"],["Logs","logs"]]){
-   const button=document.createElement("button");button.type="button";button.className="ghost";button.textContent=label;
-   button.disabled=(action==="start"&&p.pm2_env?.status==="online")||(action==="stop"&&p.pm2_env?.status!=="online");
-   button.onclick=async()=>{
-    if(!pm2Remote&&action==="stop"&&!confirm("Parar o processo "+p.name+"?"))return;
-    button.disabled=true;
-    if(pm2Remote){await runRemoteAction(action,p.name);button.disabled=false;return}
-    try{const result=await api("/pm2/processes/"+encodeURIComponent(p.name)+"/"+action,"POST",{});
-     if(action==="logs")resultMessage(result.output||"");
-     else{notify("Processo "+p.name+": "+action);await loadPM2()}
-    }catch(e){failure(e)}finally{button.disabled=false}
-   };actions.append(button)
-  }
-  td.append(actions);tr.append(td);root.append(tr)
+ const cards=$("pm2CardView");cards.replaceChildren();
+ if(!matches.length){
+  const tr=document.createElement("tr"),td=document.createElement("td");td.colSpan=10;
+  td.textContent="Nenhum processo corresponde aos filtros.";tr.append(td);root.append(tr);
+  const empty=document.createElement("p");empty.className="small muted";
+  empty.textContent="Nenhum processo encontrado.";cards.append(empty);return
  }
+ for(const p of matches){
+  const tr=document.createElement("tr"),app=pm2Application(p),state=String(p.pm2_env?.status||"offline");
+  const name=document.createElement("td"),nameWrap=document.createElement("div");
+  nameWrap.className="pm2-process-name";
+  const symbol=document.createElement("span");symbol.className="pm2-process-icon";symbol.innerHTML=iconSvg("layers-3");
+  const nameDetail=document.createElement("div"),strong=document.createElement("strong");strong.textContent=p.name;
+  nameDetail.append(strong);
+  if(app){const sub=document.createElement("small");sub.textContent=app;nameDetail.append(sub)}
+  nameWrap.append(symbol,nameDetail);name.append(nameWrap);tr.append(name);
+  const statusCell=document.createElement("td"),statusBadge=document.createElement("span");
+  statusBadge.className="pm2-status-tag "+(state==="online"?"online":"offline");
+  statusBadge.textContent=state;statusCell.append(statusBadge);tr.append(statusCell);
+  const pidCell=document.createElement("td");pidCell.className="pm2-num";pidCell.textContent=String(p.pid||"—");tr.append(pidCell);
+  const portCell=document.createElement("td");portCell.className="pm2-port-cell";
+  const ports=Array.isArray(p.ports)?p.ports:[];
+  if(!ports.length)portCell.textContent="—";
+  for(const port of ports.slice(0,4)){
+   const chip=document.createElement("span");chip.className="pm2-port-chip";chip.textContent=String(port.port);
+   chip.title=String(port.address||"Endereço indisponível")+(["127.0.0.1","::1"].includes(port.address)?" · somente local":"");
+   portCell.append(chip)
+  }
+  if(ports.length>4)portCell.append(document.createTextNode(" +"+(ports.length-4)));
+  tr.append(portCell);
+  const cpu=document.createElement("td");cpu.className="pm2-num";
+  cpu.textContent=p.monit?.cpu==null?"—":Number(p.monit.cpu).toFixed(1)+"%";tr.append(cpu);
+  const memory=document.createElement("td");memory.className="pm2-num";
+  memory.textContent=p.monit?.memory==null?"—":(Number(p.monit.memory)/1048576).toFixed(1)+" MB";tr.append(memory);
+  const restarts=document.createElement("td");restarts.className="pm2-num";
+  restarts.textContent=String(p.pm2_env?.restart_time||0);tr.append(restarts);
+  const uptime=document.createElement("td");uptime.className="pm2-num pm2-uptime";
+  uptime.textContent=pm2FormatUptime(p);tr.append(uptime);
+  const trend=document.createElement("td");trend.className="pm2-trend-cell";
+  trend.append(pm2MiniTrend(pm2Samples.get(String(selectedNode)+":"+p.name)||[]));tr.append(trend);
+  const acts=document.createElement("td");acts.append(pm2RowActions(p));tr.append(acts);root.append(tr);
+  const card=document.createElement("article");card.className="pm2-process-card";
+  const header=document.createElement("div");header.className="pm2-process-card-head";
+  const identity=nameWrap.cloneNode(true),stateCopy=statusBadge.cloneNode(true);
+  header.append(identity,stateCopy);
+  const meta=document.createElement("div");meta.className="pm2-process-card-meta";
+  for(const [label,value] of [
+   ["PID",p.pid||"—"],["CPU",cpu.textContent],["Memória",memory.textContent],
+   ["Reinícios",restarts.textContent],["Uptime",uptime.textContent],
+   ["Portas",ports.map(x=>x.port).join(", ")||"—"]
+  ]){const pair=document.createElement("div"),k=document.createElement("small"),v=document.createElement("strong");
+   k.textContent=label;v.textContent=String(value);pair.append(k,v);meta.append(pair)}
+  card.append(header,meta,pm2RowActions(p));cards.append(card)
+ }
+ $("pm2TableView").classList.toggle("hide",$("pm2View").value!=="table");
+ cards.classList.toggle("hide",$("pm2View").value!=="cards")
 }
 $("pm2Search").oninput=filterPM2;
 $("pm2StatusFilter").onchange=filterPM2;
+$("pm2AppFilter").onchange=filterPM2;
+$("pm2View").onchange=filterPM2;
+$("pm2SortName").onclick=()=>{pm2SortDesc=!pm2SortDesc;$("pm2SortName").textContent=pm2SortDesc?"Processo ↓":"Processo ↑";filterPM2()};
+document.querySelectorAll("[data-pm2-bulk]").forEach(button=>button.onclick=async()=>{
+ const action=button.dataset.pm2Bulk;
+ const eligible=pm2Filtered.filter(p=>action==="start"?p.pm2_env?.status!=="online":action==="stop"?p.pm2_env?.status==="online":true);
+ if(!eligible.length){notify("Nenhum processo elegível nos filtros atuais");return}
+ if(pm2Remote&&currentRole!=="admin"){notify("Ações remotas exigem administrador");return}
+ const phrase=action==="stop"?"PARAR":"CONFIRMAR";
+ if(prompt("Executar "+action+" em "+eligible.length+" processo(s)?\nDigite "+phrase+" para confirmar:")!==phrase)return;
+ $("pm2BulkMenu").open=false;button.disabled=true;
+ try{
+  const successes=[],failures=[];
+  for(const process of eligible){
+   try{
+    if(pm2Remote){const res=await api("/servers/"+encodeURIComponent(selectedNode)+"/actions","POST",{kind:action,target:process.name});successes.push(process.name+" (na fila)");if(eligible.length>1)break}
+    else{await api("/pm2/processes/"+encodeURIComponent(process.name)+"/"+action,"POST",{});successes.push(process.name)}
+   }catch(e){failures.push(process.name+": "+e.message);if(pm2Remote)break}
+  }
+  result("Ações PM2 — "+action+"\n"+(successes.length?successes.join("\n"):"Nenhum envio bem-sucedido")+
+    (failures.length?"\nFalhas:\n"+failures.join("\n"):"")+
+    (pm2Remote&&eligible.length>1?"\nApenas um comando remoto por vez. Aguarde confirmação do agente antes do próximo.":""));
+  notify(successes.length+" operação(ões) enviada(s).");
+  if(!pm2Remote)await loadPM2()
+ }finally{button.disabled=false}
+});
 async function loadPM2(){
  try{
-  const remote=selectedNode!=="local";
+  const nodeAtStart=selectedNode,remote=nodeAtStart!=="local";
   pm2Remote=remote;
   if(remote){
-   const detail=await api("/servers/"+encodeURIComponent(selectedNode));
-   $("pm2ScopeInfo").textContent="Servidor: "+detail.name+" · "+(detail.addresses?.join(", ")||"IP não informado")+" · operações administrativas pelo agente";
+   const detail=await api("/servers/"+encodeURIComponent(nodeAtStart));
+   if(nodeAtStart!==selectedNode)return;
+   $("pm2ScopeInfo").textContent="Servidor: "+detail.name+" · "+(detail.addresses?.join(", ")||"IP não informado")+
+    " · operações administrativas pelo agente";
    pm2Entries=(detail.pm2||[]).map(p=>({name:p.name,pid:p.pid,ports:p.ports||[],
     pm2_env:{status:p.status,restart_time:Number(p.restarts)||0},
-    monit:{cpu:null,memory:Number(p.memory)||0}}))
+    monit:{cpu:p.cpu==null?null:Number(p.cpu),memory:p.memory==null?null:Number(p.memory)}}));
+   pm2AppNames=[]
   }else{
-   pm2Entries=await api("/pm2");
-   $("pm2ScopeInfo").textContent="Servidor principal · controles locais habilitados";
+   const [entries,projects]=await Promise.all([api("/pm2"),api("/projects").catch(()=>[])]);
+   if(nodeAtStart!==selectedNode)return;
+   pm2Entries=entries;pm2AppNames=projects.map(p=>p.name)
+   $("pm2ScopeInfo").textContent="Servidor principal · controles locais habilitados"
   }
-  const online=pm2Entries.filter(p=>p.pm2_env?.status==="online").length;
-  $("pm2Overview").innerHTML=[["Processos",pm2Entries.length],["Online",online],
-   ["Reinícios",pm2Entries.reduce((a,p)=>a+(p.pm2_env?.restart_time||0),0)]]
-   .map(([label,value])=>'<div class="pm2-stat"><span>'+label+'</span><strong>'+value+'</strong></div>').join("");
-  filterPM2()
+  for(const p of pm2Entries){
+   if(p.monit?.cpu==null||!Number.isFinite(Number(p.monit.cpu)))continue;
+   const key=nodeAtStart+":"+p.name;
+   const history=pm2Samples.get(key)||[];
+   history.push(Number(p.monit.cpu));pm2Samples.set(key,history.slice(-20))
+  }
+  pm2DrawSummary();pm2UpdateAppChoices();filterPM2()
  }catch(e){failure(e)}
 }
 function resultMessage(value){result(value);$("operationPanel").scrollIntoView({block:"nearest",behavior:"smooth"})}
