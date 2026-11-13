@@ -320,7 +320,7 @@ def heartbeat(node_id, bearer, body):
             continue
     with _LOCK, _db() as db:
         _receive_result(db,node_id,body.action_result,int(time.time()))
-        pm2 = _clean(body.pm2, ("name", "status", "pid", "restarts", "memory"))
+        pm2 = _clean(body.pm2, ("name", "status", "pid", "restarts", "memory", "cpu", "pm_uptime"))
         for cleaned, original in zip(pm2, [x for x in body.pm2 if isinstance(x, dict)]):
             cleaned["ports"] = _clean_ports(original.get("ports", []))
         services = _clean(body.services, ("name", "status", "type"))
