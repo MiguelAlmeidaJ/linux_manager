@@ -1,5 +1,6 @@
 import asyncio
 from collections import deque
+from typing import Literal
 from threading import Event, Lock, Thread
 import hmac
 import ipaddress
@@ -840,7 +841,6 @@ async def terminal(ws: WebSocket):
 # --- Application deployment management (v2) ---
 import shlex
 import socket
-from typing import Literal
 
 class AppConfig(BaseModel):
     runtime: Literal["node", "python", "docker"] = "node"
