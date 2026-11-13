@@ -1714,11 +1714,12 @@ function pm2DrawSummary(){
  const total=pm2Entries.length,online=pm2Entries.filter(p=>p.pm2_env?.status==="online").length;
  const restarts=pm2Entries.reduce((acc,p)=>acc+(Number(p.pm2_env?.restart_time)||0),0);
  const memory=pm2Entries.reduce((acc,p)=>acc+(Number(p.monit?.memory)||0),0);
+ const memoryKnown=pm2Entries.some(p=>p.monit?.memory!=null&&Number.isFinite(Number(p.monit.memory)));
  const data=[
   {name:"Processos",value:total,icon:"terminal",tone:"blue",note:total&&online===total?"100% online":online+" online"},
   {name:"Online",value:online,icon:"layers-3",tone:"green",note:total?Math.round(online/total*100)+"% ativos":"Sem processos"},
   {name:"Reinícios",value:restarts,icon:"refresh-cw",tone:"violet",note:"Total acumulado do PM2"},
-  {name:"Memória total",value:(memory/1073741824).toFixed(2)+" GB",icon:"memory-stick",tone:"sky",note:"RAM dos processos"}
+  {name:"Memória total",value:memoryKnown?(memory/1073741824).toFixed(2)+" GB":"—",icon:"memory-stick",tone:"sky",note:"RAM dos processos"}
  ];
  for(const item of data){
   const card=document.createElement("div");card.className="pm2-kpi "+item.tone;
@@ -1868,8 +1869,8 @@ async function loadPM2(){
    $("pm2ScopeInfo").textContent="Servidor: "+detail.name+" · "+(detail.addresses?.join(", ")||"IP não informado")+
     " · operações administrativas pelo agente";
    pm2Entries=(detail.pm2||[]).map(p=>({name:p.name,pid:p.pid,ports:p.ports||[],
-    pm2_env:{status:p.status,restart_time:Number(p.restarts)||0},
-    monit:{cpu:p.cpu==null?null:Number(p.cpu),memory:p.memory==null?null:Number(p.memory)}}));
+    pm2_env:{status:p.status,restart_time:Number(p.restarts)||0,pm_uptime:p.pm_uptime?Number(p.pm_uptime):null},
+    monit:{cpu:p.cpu==null||p.cpu===""?null:Number(p.cpu),memory:p.memory==null||p.memory===""?null:Number(p.memory)}}));
    pm2AppNames=[]
   }else{
    const [entries,projects]=await Promise.all([api("/pm2"),api("/projects").catch(()=>[])]);
