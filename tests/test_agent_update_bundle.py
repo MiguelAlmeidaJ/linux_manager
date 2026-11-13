@@ -40,6 +40,21 @@ class WindowsUpdateBundleTests(unittest.TestCase):
                 self.assertNotIn("agent.json", names)
             self.assertIn("no-store", result.headers.get("cache-control", ""))
 
+    def test_bundle_matches_updater_required_python_files(self):
+        from re import findall
+        source = (Path(__file__).resolve().parents[1] / "agents" / "Update-Agent.ps1").read_text(encoding="utf-8")
+        required = set(findall(r'"(windows_[a-z_]+\\.py)"', source))
+        self.assertTrue(required, "No Python dependencies found in updater")
+        with patch.object(app, "assert_admin", return_value={"id": 1, "username": "admin"}), \
+             patch.object(app, "require_secure_database_admin"), \
+             patch.object(app.nodes, "detail", return_value={"os_type": "windows", "enabled": True}), \
+             patch.object(app.identities, "log"):
+            result = app.server_agent_update_download(3, SimpleNamespace(
+                client=SimpleNamespace(host="127.0.0.1")))
+        with zipfile.ZipFile(io.BytesIO(result.body)) as archive:
+            included = set(archive.namelist())
+        self.assertFalse(required - included, "ZIP missing updater-required files: " + str(required - included))
+
     def test_linux_node_cannot_download_windows_update(self):
         request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"))
         with patch.object(app, "assert_admin", return_value={"id": 1, "username": "admin"}), \
