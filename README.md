@@ -696,3 +696,13 @@ O menu **Operações em lote** opera sobre os processos que passam pelos filtros
 Os logs são exibidos no console de operações já existente. CPU e RAM individuais para Windows são enviados pelo agente atualizado como campos allowlisted; também é incluído o timestamp PM2 pm_uptime quando disponível. Para ativar essas métricas remotas, faça novo download da **atualização do agente** no painel e execute `Update-Agent.ps1 -SkipMySQL` como Administrador no Windows. A atualização normal da interface no Linux não requer reiniciar os processos PM2 nem fazer deploy de projetos.
 
 Depois de atualizar o repositório Linux em `/opt/linux-manager` com `git pull --ff-only`, verifique `python -m py_compile app.py server_registry.py`, reinicie somente `linux-manager.service`, confirme `active (running)` e recarregue a página com Ctrl+Shift+R. A sintaxe JavaScript foi inspecionada; os controles precisam ser validados no navegador e no Windows real antes de uso em produção.
+
+## Windows Server: página Projetos PHP e header simplificado
+
+A página Projetos PHP apresenta um inventário compacto no estilo Frost do Server Manager com quatro indicadores: projetos encontrados, VirtualHosts detectados com DocumentRoot próprio, diretórios htdocs identificados e servidor selecionado. A tabela permite pesquisar por nome, diretório e origem, além de filtrar tecnologia e origem. Cada linha permite copiar o caminho e expandir detalhes, sem executar comandos PHP nem criar ou alterar VirtualHosts.
+
+O agente identifica diretórios e alguns VirtualHosts, mas não comprova se o projeto está online nem relaciona todos os aliases Apache. Por isso o painel evita status Ativo, botões Abrir ou opções de configuração não verificadas. O botão Serviços XAMPP leva à página de monitoramento de serviços já existente.
+
+O header foi simplificado para breadcrumb, seletor de servidor atual e conta, sem excesso de ícones, subtítulos ou cartões decorativos. IDs e eventos de seleção, logout e navegação foram preservados.
+
+Para aplicar: git pull --ff-only em /opt/linux-manager como linuxmanager, valide app.py e server_registry.py com py_compile, reinicie somente linux-manager.service e atualize a página com Ctrl+Shift+R. Esta alteração modifica apenas index.html e não exige reinstalar agentes Windows.
