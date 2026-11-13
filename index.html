@@ -470,7 +470,40 @@ GRANT SHOW DATABASES ON *.* TO 'lm_monitor'@'127.0.0.1';</pre><p>Depois, no Powe
 <div class="wide"><button>Clonar repositório</button><p class="help">Após clonar, configure runtime, porta e deploy no cartão da aplicação.</p></div></form></div>
 <div class="panel apps-projects-panel"><div class="section-top apps-projects-header"><div class="apps-section-heading"><span class="apps-section-icon"><span data-icon="layers-3"></span></span><div><h2>Aplicações gerenciadas</h2><p class="small muted">Realize deploys, monitore processos, configure portas e serviços.</p></div></div><div class="apps-projects-tools"><span id="appsProjectTotal" class="apps-overview-badge">0 aplicações</span><label class="apps-filter-label"><span class="sr-only">Filtrar aplicações</span><input id="appsProjectFilter" type="search" placeholder="Buscar aplicação..." autocomplete="off"></label></div></div><div id="projectList"><div class="empty"><span class="glyph">◇</span>Carregando aplicações...</div></div></div>
 </section>
-<section id="pm2" class="hide"><div class="heading"><div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div><button class="ghost" id="reloadPm2">↻ Atualizar</button></div><p id="pm2ScopeInfo" class="small muted">Servidor principal</p><div id="pm2Overview" class="grid" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:18px"></div><div class="panel"><div class="section-top"><h2>Processos em execução</h2><span class="badge" id="pm2Count">—</span></div><div class="pm2-filters"><label class="field">Pesquisar por nome, porta ou PID<input id="pm2Search" placeholder="Ex.: nutrir, 3001, 6616" autocomplete="off"></label><label class="field">Status<select id="pm2StatusFilter"><option value="">Todos</option><option value="online">Online</option><option value="stopped">Stopped / Parado</option><option value="errored">Error / Erro</option><option value="other">Outros</option></select></label></div><div class="table-wrap"><table class="table"><thead><tr><th>Processo</th><th>Status</th><th>PID</th><th>Portas TCP</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table></div></div></section>
+<section id="pm2" class="hide">
+<div class="heading pm2-heading">
+ <div><h1>Processos PM2</h1><p>Monitore e controle cada processo associado às suas aplicações.</p></div>
+ <div class="pm2-heading-actions">
+  <details class="pm2-bulk" id="pm2BulkMenu"><summary>Operações em lote <span aria-hidden="true">⌄</span></summary>
+   <div class="pm2-bulk-options">
+    <button type="button" class="ghost" data-pm2-bulk="restart">Reiniciar filtrados</button>
+    <button type="button" class="ghost" data-pm2-bulk="stop">Parar filtrados</button>
+    <button type="button" class="ghost" data-pm2-bulk="start">Iniciar filtrados</button>
+   </div>
+  </details>
+  <button class="pm2-refresh" id="reloadPm2">↻ Atualizar</button>
+ </div>
+</div>
+<p id="pm2ScopeInfo" class="small muted pm2-scope">Servidor principal</p>
+<div id="pm2Overview" class="pm2-kpi-grid" aria-label="Resumo dos processos"></div>
+<div class="panel pm2-workspace">
+ <div class="section-top pm2-workspace-head">
+  <div class="pm2-heading-label"><span class="pm2-heading-emblem"><span data-icon="layers-3"></span></span><div><h2>Processos em execução</h2><p class="small muted">Consulte status, recursos, portas e ações em um só lugar.</p></div></div>
+  <span class="pm2-count-pill" id="pm2Count">—</span>
+ </div>
+ <div class="pm2-filter-bar">
+  <label class="pm2-filter-search"><span class="sr-only">Pesquisar processos por nome, porta ou PID</span><span data-icon="search"></span><input id="pm2Search" placeholder="Pesquisar por nome, porta ou PID..." autocomplete="off"></label>
+  <label class="pm2-filter-select"><span class="sr-only">Status dos processos</span><select id="pm2StatusFilter"><option value="">Status: Todos</option><option value="online">Online</option><option value="stopped">Parado</option><option value="errored">Erro</option><option value="other">Outros</option></select></label>
+  <label class="pm2-filter-select"><span class="sr-only">Aplicação</span><select id="pm2AppFilter"><option value="">Aplicação: Todas</option></select></label>
+  <label class="pm2-filter-select"><span class="sr-only">Visualização</span><select id="pm2View"><option value="table">Visualização: Tabela</option><option value="cards">Visualização: Cartões</option></select></label>
+ </div>
+ <div id="pm2TableView" class="table-wrap pm2-table-shell">
+  <table class="table pm2-table"><thead><tr><th><button id="pm2SortName" class="pm2-sort" type="button">Processo ↕</button></th><th>Status</th><th>PID</th><th>Portas TCP</th><th>CPU</th><th>Memória</th><th>Reinícios</th><th>Uptime</th><th>Tendência CPU</th><th>Ações</th></tr></thead><tbody id="pm2Table"></tbody></table>
+ </div>
+ <div id="pm2CardView" class="pm2-cards hide"></div>
+ <p id="pm2TrendHelp" class="small muted pm2-trend-help">A tendência de CPU utiliza amostras desta sessão do navegador. Portas em escuta não garantem acesso externo.</p>
+</div>
+</section>
 <section id="docker" class="hide">
 <div class="heading"><div><h1>Containers e serviços</h1><p>Gerencie serviços compartilhados sem interromper containers de outras aplicações.</p></div><button class="ghost" id="reloadDocker">↻ Atualizar</button></div>
 <div class="panel"><div class="section-top"><div><h2>Catálogo de serviços</h2><p class="small muted">Instâncias compartilhadas · acesso local · volumes persistentes</p></div><span class="badge">Gerenciado</span></div><div id="managedServiceList" class="service-grid"></div><div class="help" style="margin-top:15px">SQL Server e serviços adicionais exigirão implantação dedicada e dimensionamento de recursos. Nenhum serviço será exposto publicamente pelo painel.</div></div>
@@ -518,6 +551,14 @@ const ICON_PATHS={
  "layout-dashboard":'<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
  "layers-3":'<path d="m12 2 9 5-9 5-9-5 9-5Z"/><path d="m3 12 9 5 9-5"/><path d="m3 17 9 5 9-5"/>',
  "activity":'<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+ "search":'<circle cx="10.8" cy="10.8" r="7.5"/><path d="m16.5 16.5 5 5"/>',
+ "play":'<path d="m8 5 12 7-12 7z"/>',
+ "square":'<rect x="5" y="5" width="14" height="14" rx="2"/>',
+ "refresh-cw":'<path d="M20 11a8 8 0 0 0-14-5L4 8"/><path d="M4 3v5h5M4 13a8 8 0 0 0 14 5l2-2"/><path d="M20 21v-5h-5"/>',
+ "clock":'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/>',
+ "file-text":'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M8 13h8M8 17h8"/>',
+ "more-horizontal":'<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+ "timer":'<circle cx="12" cy="13" r="9"/><path d="M12 13V8M9 2h6M19 5l2-2"/>',
  "boxes":'<path d="M2 10 12 5l10 5-10 5-10-5Z"/><path d="m2 10 0 7 10 5 10-5v-7"/><path d="M12 15v7"/><path d="m7 7.5 10 5"/>',
  "database":'<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5"/><path d="M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/>',
  "network":'<rect x="9" y="2" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="16" y="16" width="6" height="6" rx="1"/><path d="M12 8v4M5 16v-4h14v4"/>',
